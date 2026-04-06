@@ -25,6 +25,11 @@ export default function Navbar() {
             <Link className={location.pathname === "/bookings" ? "active" : ""} to="/bookings">
               My bookings
             </Link>
+            {user.role === "admin" && (
+              <Link className={location.pathname === "/admin/rooms" ? "active" : ""} to="/admin/rooms">
+                Manage rooms
+              </Link>
+            )}
           </>
         )}
       </nav>
@@ -32,7 +37,7 @@ export default function Navbar() {
         <button type="button" onClick={toggleTheme}>Theme: {theme}</button>
         {user ? (
           <>
-            <span className="user-email">{user.email}</span>
+            <span className="user-email">{user.email} ({user.role})</span>
             <button type="button" onClick={handleLogout}>Logout</button>
           </>
         ) : (

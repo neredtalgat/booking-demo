@@ -9,11 +9,23 @@ async function request(path, options = {}) {
   return data;
 }
 
-export function login(email) {
+function authHeader(token) {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export function register(payload) {
+  return request("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function login(email, password) {
   return request("/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email })
+    body: JSON.stringify({ email, password })
   });
 }
 
@@ -28,9 +40,42 @@ export function getRooms(params) {
   return request(`/rooms${suffix}`);
 }
 
+export function getRoomById(id) {
+  return request(`/rooms/${id}`);
+}
+
+export function createRoom(token, payload) {
+  return request("/rooms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader(token) },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateRoom(token, id, payload) {
+  return request(`/rooms/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeader(token) },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteRoom(token, id) {
+  return request(`/rooms/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeader(token) }
+  });
+}
+
 export function getMyBookings(token) {
   return request("/bookings", {
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { ...authHeader(token) }
+  });
+}
+
+export function getBookingById(token, id) {
+  return request(`/bookings/${id}`, {
+    headers: { ...authHeader(token) }
   });
 }
 
@@ -39,8 +84,26 @@ export function createBooking(token, payload) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
+      ...authHeader(token)
     },
     body: JSON.stringify(payload)
+  });
+}
+
+export function updateBooking(token, id, payload) {
+  return request(`/bookings/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(token)
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteBooking(token, id) {
+  return request(`/bookings/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeader(token) }
   });
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createBooking, getRooms } from "../api/client";
+import { createBooking, getRoomById, getRooms } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import BookingForm from "./BookingForm";
 
@@ -9,6 +9,7 @@ export default function RoomsPage() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState({ city: "", guests: "", checkIn: "", checkOut: "" });
   const [activeRoom, setActiveRoom] = useState(null);
+  const [selectedRoom, setSelectedRoom] = useState(null);
   const [busyBooking, setBusyBooking] = useState(false);
   const [status, setStatus] = useState("");
 
@@ -39,13 +40,26 @@ export default function RoomsPage() {
 
   const handleBook = async (payload) => {
     setBusyBooking(true);
+    setStatus("");
     try {
       await createBooking(token, payload);
       setStatus("Booking created successfully.");
       setActiveRoom(null);
       await loadRooms(search);
+    } catch (err) {
+      setStatus(err.message);
     } finally {
       setBusyBooking(false);
+    }
+  };
+
+  const handleView = async (id) => {
+    setStatus("");
+    try {
+      const room = await getRoomById(id);
+      setSelectedRoom(room);
+    } catch (err) {
+      setStatus(err.message);
     }
   };
 
@@ -86,12 +100,31 @@ export default function RoomsPage() {
             <p>${room.pricePerNight} / night</p>
             <p>Guests up to {room.maxGuests}</p>
             <p className="muted">{room.amenities.join(", ")}</p>
-            <button type="button" onClick={() => setActiveRoom(room)}>
-              Book room
-            </button>
+            <div className="inline-actions">
+              <button type="button" onClick={() => setActiveRoom(room)}>
+                Book room
+              </button>
+              <button type="button" onClick={() => handleView(room.id)}>
+                View details
+              </button>
+            </div>
           </article>
         ))}
       </div>
+
+      {selectedRoom && (
+        <section className="card modal">
+          <div className="modal-head">
+            <h3>Room #{selectedRoom.id}</h3>
+            <button type="button" onClick={() => setSelectedRoom(null)}>Close</button>
+          </div>
+          <p>Name: {selectedRoom.name}</p>
+          <p>City: {selectedRoom.city}</p>
+          <p>Price: ${selectedRoom.pricePerNight}</p>
+          <p>Max guests: {selectedRoom.maxGuests}</p>
+          <p className="muted">{selectedRoom.amenities.join(", ")}</p>
+        </section>
+      )}
 
       {activeRoom && (
         <section className="card modal">

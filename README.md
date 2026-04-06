@@ -1,21 +1,31 @@
 # Hotel Booking System
 
-Проект собран на основе структуры из `week10-project1.rar` (React + Context + Router), но адаптирован под домен бронирования отелей.
+Проект собран на основе структуры из `week10-project1.rar` (React + Context + Router) и расширен под требования 11-week defense.
 
-## Что реализовано
+## Реализованные требования
 
-- Frontend (React + Vite):
-  - логин по email
-  - переключение темы
-  - поиск номеров по городу/гостям/датам
-  - создание брони
-  - список моих бронирований
-- Backend (Express):
+- Регистрация и аутентификация с хэшированием пароля (`crypto.scrypt`):
+  - `POST /auth/register`
   - `POST /auth/login`
-  - `GET /rooms`
-  - `GET /bookings` (auth)
-  - `POST /bookings` (auth)
-  - проверка пересечений бронирований по датам
+  - `POST /auth/logout`
+- На backend минимум 3 сущности (массивы):
+  - `users`, `rooms`, `bookings`
+- One-to-many связи:
+  - `user -> bookings`
+  - `room -> bookings`
+- Реализован полный CRUD:
+  - Users: `GET /users`, `GET /users/:id`, `PUT /users/:id`, `DELETE /users/:id`, register as create
+  - Rooms: `POST /rooms`, `GET /rooms`, `GET /rooms/:id`, `PUT /rooms/:id`, `DELETE /rooms/:id`
+  - Bookings: `POST /bookings`, `GET /bookings`, `GET /bookings/:id`, `PUT /bookings/:id`, `DELETE /bookings/:id`
+- Во frontend использованы Routing и Context.
+
+## Frontend
+
+- Login/Register (email + password)
+- Rooms search + booking
+- Booking list with update/delete
+- Read one by id для room/booking
+- Admin page для CRUD комнат
 
 ## Запуск
 
@@ -38,10 +48,7 @@ npm run dev
 - Backend: http://localhost:8080
 - Frontend: http://localhost:5173
 
-## Демодоступ
+## Demo users
 
-Для входа можно использовать:
-
-- `guest@hotel.com`
-- `admin@hotel.com`
-- либо любой email в корректном формате
+- Admin: `admin@hotel.com` / `admin123`
+- Guest: `guest@hotel.com` / `guest123`

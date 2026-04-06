@@ -88,6 +88,10 @@
   gap: 10px;
 }
 
+.form-stack.compact {
+  gap: 6px;
+}
+
 .search-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -161,6 +165,20 @@ button {
 button:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-text {
+  background: transparent;
+  color: inherit;
+  border: none;
+  text-decoration: underline;
+  padding-left: 0;
 }
 
 @media (max-width: 900px) {

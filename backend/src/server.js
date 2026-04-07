@@ -251,6 +251,10 @@ app.post("/auth/logout", authMiddleware, (req, res) => {
   res.json({ message: "Logged out" });
 });
 
+app.get("/users/me", authMiddleware, (req, res) => {
+  res.json(sanitizeUser(req.user));
+})
+
 app.get("/users", authMiddleware, adminOnly, (_req, res) => {
   res.json(users.map(sanitizeUser));
 });

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { login as loginRequest, register as registerRequest } from "../api/client";
+import { getMe, login as loginRequest, register as registerRequest } from "../api/client";
 
 const AuthContext = createContext();
 
@@ -14,16 +14,42 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    let parsed;
     try {
-      const parsed = JSON.parse(saved);
-      if (parsed?.user && parsed?.token) {
-        setUser(parsed.user);
-        setToken(parsed.token);
-      }
+      parsed = JSON.parse(saved);
     } catch {
       localStorage.removeItem("hotel_auth");
+      return;
     }
-  }, []);
+
+    if (!parsed?.token) {
+    localStorage.removeItem("hotel_auth");
+    return;
+  }
+  
+let cancelled = false;
+
+  (async () => {
+    try {
+      const me = await getMe(parsed.token);
+      if (!cancelled) {
+        setToken(parsed.token);
+        setUser(me);
+        localStorage.setItem("hotel_auth", JSON.stringify({ token: parsed.token, user: me }));
+      }
+    } catch {
+      if (!cancelled) {
+        setUser(null);
+        setToken("");
+        localStorage.removeItem("hotel_auth");
+      }
+    }
+  })();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
   const login = async (email, password) => {
     setLoading(true);

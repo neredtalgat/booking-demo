@@ -93,8 +93,8 @@ function createSeedUser({ name, email, password, role = "guest" }) {
   users.push(user);
 }
 
-createSeedUser({ name: "Admin User", email: "admin@hotel.com", password: "admin123", role: "admin" });
-createSeedUser({ name: "Guest User", email: "guest@hotel.com", password: "guest123", role: "guest" });
+createSeedUser({ name: "Admin User", email: "admin@hotel.com", password: "12345admin", role: "admin" });
+createSeedUser({ name: "Guest User", email: "guest@hotel.com", password: "12345guest", role: "guest" });
 
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;

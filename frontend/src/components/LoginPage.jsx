@@ -6,7 +6,7 @@ export default function LoginPage() {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [name, setName] = useState("Student User");
   const [email, setEmail] = useState("guest@hotel.com");
-  const [password, setPassword] = useState("guest123");
+  const [password, setPassword] = useState("12345guest");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -36,7 +36,7 @@ export default function LoginPage() {
   return (
     <section className="card login-card">
       <h1>{isRegisterMode ? "Create account" : "Sign in"}</h1>
-      <p>Demo users: admin@hotel.com/admin123, guest@hotel.com/guest123</p>
+      <p>Demo users: admin@hotel.com/12345admin, guest@hotel.com/12345guest</p>
 
       <form onSubmit={handleSubmit} className="form-stack">
         {isRegisterMode && (

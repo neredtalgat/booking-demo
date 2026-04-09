@@ -68,23 +68,31 @@ export default function RoomsPage() {
       <h1>Find a room</h1>
 
       <form className="card search-grid" onSubmit={handleSearch}>
-        <label>City</label>
-        <input value={search.city} onChange={(e) => setSearch((prev) => ({ ...prev, city: e.target.value }))} placeholder="Almaty" />
+        <div className="form-stack compact">
+          <label>City</label>
+          <input value={search.city} onChange={(e) => setSearch((prev) => ({ ...prev, city: e.target.value }))} placeholder="Almaty" />
+        </div>
 
-        <label>Guests</label>
-        <input
-          type="number"
-          min="1"
-          value={search.guests}
-          onChange={(e) => setSearch((prev) => ({ ...prev, guests: e.target.value }))}
-          placeholder="2"
-        />
+        <div className="form-stack compact">
+          <label>Guests</label>
+          <input
+            type="number"
+            min="1"
+            value={search.guests}
+            onChange={(e) => setSearch((prev) => ({ ...prev, guests: e.target.value }))}
+            placeholder="2"
+          />
+        </div>
 
-        <label>Check-in</label>
-        <input type="date" value={search.checkIn} onChange={(e) => setSearch((prev) => ({ ...prev, checkIn: e.target.value }))} />
+        <div className="form-stack compact">
+          <label>Check-in</label>
+          <input type="date" value={search.checkIn} onChange={(e) => setSearch((prev) => ({ ...prev, checkIn: e.target.value }))} />
+        </div>
 
-        <label>Check-out</label>
-        <input type="date" value={search.checkOut} onChange={(e) => setSearch((prev) => ({ ...prev, checkOut: e.target.value }))} />
+        <div className="form-stack compact">
+          <label>Check-out</label>
+          <input type="date" value={search.checkOut} onChange={(e) => setSearch((prev) => ({ ...prev, checkOut: e.target.value }))} />
+        </div>
 
         <button type="submit">Search</button>
       </form>

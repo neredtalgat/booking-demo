@@ -1,20 +1,25 @@
 import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import {
   deleteBooking,
   getBookingById,
   getMyBookings,
   updateBooking
 } from "../api/client";
-import { useAuth } from "../context/AuthContext";
+import { addToast } from "../store/uiSlice";
+import ConfirmModal from "./ConfirmModal";
 
 export default function MyBookingsPage() {
-  const { token } = useAuth();
+  const dispatch = useDispatch();
+  const token = useSelector((state) => state.auth.token);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState(null);
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ roomId: "", checkIn: "", checkOut: "", guests: "" });
+  const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "", guests: "" });
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -22,8 +27,10 @@ export default function MyBookingsPage() {
     try {
       const data = await getMyBookings(token);
       setBookings(data);
+      dispatch(addToast(`Bookings loaded: ${data.length}`, "info"));
     } catch (err) {
       setError(err.message);
+      dispatch(addToast(err.message, "error"));
     } finally {
       setLoading(false);
     }
@@ -36,7 +43,6 @@ export default function MyBookingsPage() {
   const startEdit = (booking) => {
     setEditingId(booking.id);
     setEditForm({
-      roomId: String(booking.roomId),
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
       guests: String(booking.guests)
@@ -47,25 +53,36 @@ export default function MyBookingsPage() {
     setError("");
     try {
       await updateBooking(token, id, {
-        roomId: Number(editForm.roomId),
         checkIn: editForm.checkIn,
         checkOut: editForm.checkOut,
         guests: Number(editForm.guests)
       });
+      dispatch(addToast(`Booking #${id} updated`, "success"));
       setEditingId(null);
       await load();
     } catch (err) {
       setError(err.message);
+      dispatch(addToast(err.message, "error"));
     }
   };
 
-  const removeBooking = async (id) => {
+  const removeBooking = async () => {
+    if (!pendingDelete) {
+      return;
+    }
+
     setError("");
+    setDeleteBusy(true);
     try {
-      await deleteBooking(token, id);
+      await deleteBooking(token, pendingDelete.id);
+      dispatch(addToast(`Booking #${pendingDelete.id} deleted`, "success"));
+      setPendingDelete(null);
       await load();
     } catch (err) {
       setError(err.message);
+      dispatch(addToast(err.message, "error"));
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -74,8 +91,10 @@ export default function MyBookingsPage() {
     try {
       const data = await getBookingById(token, id);
       setDetail(data);
+      dispatch(addToast(`Opened booking #${id}`, "success"));
     } catch (err) {
       setError(err.message);
+      dispatch(addToast(err.message, "error"));
     }
   };
 
@@ -93,8 +112,6 @@ export default function MyBookingsPage() {
             <p>{booking.room?.city}</p>
             {editingId === booking.id ? (
               <div className="form-stack compact">
-                <label>Room ID</label>
-                <input value={editForm.roomId} onChange={(e) => setEditForm((p) => ({ ...p, roomId: e.target.value }))} />
                 <label>Check-in</label>
                 <input type="date" value={editForm.checkIn} onChange={(e) => setEditForm((p) => ({ ...p, checkIn: e.target.value }))} />
                 <label>Check-out</label>
@@ -115,7 +132,7 @@ export default function MyBookingsPage() {
                 <p>Total: ${booking.totalPrice}</p>
                 <div className="inline-actions">
                   <button type="button" onClick={() => startEdit(booking)}>Edit</button>
-                  <button type="button" onClick={() => removeBooking(booking.id)}>Delete</button>
+                  <button type="button" onClick={() => setPendingDelete(booking)}>Delete</button>
                   <button type="button" onClick={() => showOne(booking.id)}>View by id</button>
                 </div>
               </>
@@ -136,6 +153,15 @@ export default function MyBookingsPage() {
           <p>Total: ${detail.totalPrice}</p>
         </section>
       )}
+
+      <ConfirmModal
+        open={Boolean(pendingDelete)}
+        title={`Delete booking #${pendingDelete?.id || ""}`}
+        description="This action cannot be undone. Do you want to continue?"
+        busy={deleteBusy}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={removeBooking}
+      />
     </section>
   );
 }

@@ -1,12 +1,41 @@
 import crypto from "crypto";
 import express from "express";
 import cors from "cors";
+import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
+import dotenv from "dotenv";
+import { query as dbQuery } from "./database.js";
+
+dotenv.config();
 
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
-app.use(cors({ origin: "http://localhost:5173" }));
+// Middleware
+app.use(cors({ origin: FRONTEND_URL }));
 app.use(express.json());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: "Too many login attempts, please try again later.",
+  skipSuccessfulRequests: true,
+});
+
+app.use(limiter);
+app.use("/auth/login", authLimiter);
+app.use("/auth/register", authLimiter);
 
 function parseDate(value) {
   const date = new Date(value);
@@ -33,8 +62,27 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
 }
 
 function verifyPassword(password, salt, expectedHash) {
-  const actualHash = crypto.scryptSync(password, salt, 64).toString("hex");
-  return crypto.timingSafeEqual(Buffer.from(actualHash, "hex"), Buffer.from(expectedHash, "hex"));
+  try {
+    const actualHash = crypto.scryptSync(password, String(salt || ""), 64).toString("hex");
+    const actualBuffer = Buffer.from(actualHash, "hex");
+    const expectedBuffer = Buffer.from(String(expectedHash || ""), "hex");
+
+    if (
+      actualBuffer.length === 0 ||
+      expectedBuffer.length === 0 ||
+      actualBuffer.length !== expectedBuffer.length
+    ) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+  } catch {
+    return false;
+  }
+}
+
+function generateToken(userId) {
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" });
 }
 
 function sanitizeUser(user) {
@@ -42,81 +90,55 @@ function sanitizeUser(user) {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role
+    role: user.role,
   };
 }
 
-const users = [];
-const rooms = [
-  {
-    id: 101,
-    name: "Deluxe City View",
-    city: "Almaty",
-    pricePerNight: 120,
-    maxGuests: 2,
-    amenities: ["Wi-Fi", "Breakfast", "Air conditioning"]
-  },
-  {
-    id: 102,
-    name: "Family Suite",
-    city: "Astana",
-    pricePerNight: 180,
-    maxGuests: 4,
-    amenities: ["Wi-Fi", "Breakfast", "Kitchen", "Parking"]
-  },
-  {
-    id: 103,
-    name: "Business Room",
-    city: "Shymkent",
-    pricePerNight: 90,
-    maxGuests: 2,
-    amenities: ["Wi-Fi", "Desk", "Airport shuttle"]
-  }
-];
-
-const bookings = [];
-const sessions = new Map();
-let userIdCounter = 1;
-let roomIdCounter = 104;
-let bookingIdCounter = 1;
-
-function createSeedUser({ name, email, password, role = "guest" }) {
-  const { salt, hash } = hashPassword(password);
-  const user = {
-    id: userIdCounter++,
-    name,
-    email: email.toLowerCase(),
-    role,
-    passwordSalt: salt,
-    passwordHash: hash
+function serializeRoom(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    city: row.city,
+    pricePerNight: Number(row.price_per_night),
+    maxGuests: row.max_guests,
+    amenities: Array.isArray(row.amenities) ? row.amenities : [],
+    createdAt: row.created_at,
   };
-  users.push(user);
 }
 
-createSeedUser({ name: "Admin User", email: "admin@hotel.com", password: "12345admin", role: "admin" });
-createSeedUser({ name: "Guest User", email: "guest@hotel.com", password: "12345guest", role: "guest" });
+// Auth Middleware
+async function authMiddleware(req, res, next) {
+  try {
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Missing auth token" });
+    }
 
-function authMiddleware(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Missing auth token" });
+    const token = header.slice(7);
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const result = await dbQuery(
+      "SELECT id, name, email, role FROM users WHERE id = $1",
+      [decoded.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    req.user = result.rows[0];
+    req.token = token;
+    next();
+  } catch (error) {
+    console.error("Auth middleware error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
-
-  const token = header.slice(7);
-  const userId = sessions.get(token);
-  if (!userId) {
-    return res.status(401).json({ message: "Invalid token" });
-  }
-
-  const user = users.find((u) => u.id === userId);
-  if (!user) {
-    sessions.delete(token);
-    return res.status(401).json({ message: "Session expired" });
-  }
-
-  req.user = user;
-  req.token = token;
-  next();
 }
 
 function adminOnly(req, res, next) {
@@ -154,7 +176,7 @@ function validateRoomPayload(payload) {
   };
 }
 
-function buildBookingPayload(input) {
+async function buildBookingPayload(input) {
   const roomId = Number(input?.roomId);
   const guests = Number(input?.guests);
   const checkIn = parseDate(input?.checkIn);
@@ -168,13 +190,15 @@ function buildBookingPayload(input) {
     return { error: "checkOut must be later than checkIn" };
   }
 
-  const room = rooms.find((r) => r.id === roomId);
+  const roomResult = await dbQuery("SELECT * FROM rooms WHERE id = $1", [roomId]);
+  const room = roomResult.rows[0];
+
   if (!room) {
     return { error: "Room not found", status: 404 };
   }
 
-  if (guests > room.maxGuests) {
-    return { error: `Room allows up to ${room.maxGuests} guests` };
+  if (guests > room.max_guests) {
+    return { error: `Room allows up to ${room.max_guests} guests` };
   }
 
   return {
@@ -184,346 +208,642 @@ function buildBookingPayload(input) {
       guests,
       checkIn,
       checkOut,
-      nights: nightsBetween(checkIn, checkOut)
-    }
+      nights: nightsBetween(checkIn, checkOut),
+    },
   };
 }
 
-function hasBookingConflict({ roomId, checkIn, checkOut, ignoreBookingId = null }) {
-  return bookings
-    .filter((booking) => booking.roomId === roomId && booking.id !== ignoreBookingId)
-    .some((booking) => overlap(checkIn, checkOut, parseDate(booking.checkIn), parseDate(booking.checkOut)));
+async function hasBookingConflict({ roomId, checkIn, checkOut, ignoreBookingId = null }) {
+  const query =
+    ignoreBookingId === null
+      ? "SELECT * FROM bookings WHERE room_id = $1"
+      : "SELECT * FROM bookings WHERE room_id = $1 AND id != $2";
+
+  const params = ignoreBookingId === null ? [roomId] : [roomId, ignoreBookingId];
+  const result = await dbQuery(query, params);
+
+  return result.rows.some((booking) =>
+    overlap(checkIn, checkOut, parseDate(booking.check_in), parseDate(booking.check_out))
+  );
 }
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-app.post("/auth/register", (req, res) => {
-  const name = String(req.body?.name || "").trim();
-  const email = String(req.body?.email || "").trim().toLowerCase();
-  const password = String(req.body?.password || "");
+// Auth Routes
+app.post("/auth/register", async (req, res) => {
+  try {
+    const name = String(req.body?.name || "").trim();
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "");
 
-  if (!name || !email.includes("@") || password.length < 6) {
-    return res.status(400).json({ message: "name, valid email, and password(>=6) are required" });
+    if (!name || !email.includes("@") || password.length < 6) {
+      return res.status(400).json({ message: "name, valid email, and password(>=6) are required" });
+    }
+
+    const existsResult = await dbQuery("SELECT id FROM users WHERE email = $1", [email]);
+    if (existsResult.rows.length > 0) {
+      return res.status(409).json({ message: "User with this email already exists" });
+    }
+
+    const { salt, hash } = hashPassword(password);
+    const result = await dbQuery(
+      "INSERT INTO users (name, email, password_salt, password_hash, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role",
+      [name, email, salt, hash, "guest"]
+    );
+
+    const user = result.rows[0];
+    res.status(201).json({ user: sanitizeUser(user) });
+  } catch (error) {
+    console.error("Register error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
-
-  if (users.some((user) => user.email === email)) {
-    return res.status(409).json({ message: "User with this email already exists" });
-  }
-
-  const { salt, hash } = hashPassword(password);
-  const user = {
-    id: userIdCounter++,
-    name,
-    email,
-    role: "guest",
-    passwordSalt: salt,
-    passwordHash: hash
-  };
-
-  users.push(user);
-
-  res.status(201).json({ user: sanitizeUser(user) });
 });
 
-app.post("/auth/login", (req, res) => {
-  const email = String(req.body?.email || "").trim().toLowerCase();
-  const password = String(req.body?.password || "");
+app.post("/auth/login", async (req, res) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "");
 
-  if (!email || !password) {
-    return res.status(400).json({ message: "Email and password are required" });
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    const userResult = await dbQuery("SELECT * FROM users WHERE email = $1", [email]);
+    const user = userResult.rows[0];
+
+    if (!user || !verifyPassword(password, user.password_salt, user.password_hash)) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const token = generateToken(user.id);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await dbQuery("INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)", [
+      token,
+      user.id,
+      expiresAt,
+    ]);
+
+    res.json({ token, user: sanitizeUser(user) });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
-
-  const user = users.find((u) => u.email === email);
-  if (!user || !verifyPassword(password, user.passwordSalt, user.passwordHash)) {
-    return res.status(401).json({ message: "Invalid email or password" });
-  }
-
-  const token = crypto.randomBytes(24).toString("hex");
-  sessions.set(token, user.id);
-
-  res.json({ token, user: sanitizeUser(user) });
 });
 
-app.post("/auth/logout", authMiddleware, (req, res) => {
-  sessions.delete(req.token);
-  res.json({ message: "Logged out" });
+app.post("/auth/logout", authMiddleware, async (req, res) => {
+  try {
+    await dbQuery("DELETE FROM sessions WHERE token = $1", [req.token]);
+    res.json({ message: "Logged out" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 app.get("/users/me", authMiddleware, (req, res) => {
   res.json(sanitizeUser(req.user));
-})
-
-app.get("/users", authMiddleware, adminOnly, (_req, res) => {
-  res.json(users.map(sanitizeUser));
 });
 
-app.get("/users/:id", authMiddleware, (req, res) => {
-  const id = Number(req.params.id);
-  const target = users.find((user) => user.id === id);
-
-  if (!target) {
-    return res.status(404).json({ message: "User not found" });
+// User Routes
+app.get("/users", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const result = await dbQuery("SELECT id, name, email, role FROM users");
+    res.json(result.rows.map(sanitizeUser));
+  } catch (error) {
+    console.error("Get users error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
-
-  if (req.user.role !== "admin" && req.user.id !== id) {
-    return res.status(403).json({ message: "Access denied" });
-  }
-
-  res.json(sanitizeUser(target));
 });
 
-app.put("/users/:id", authMiddleware, (req, res) => {
-  const id = Number(req.params.id);
-  const user = users.find((u) => u.id === id);
+app.get("/users/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const result = await dbQuery("SELECT id, name, email, role FROM users WHERE id = $1", [id]);
 
-  if (!user) {
-    return res.status(404).json({ message: "User not found" });
-  }
-
-  if (req.user.role !== "admin" && req.user.id !== id) {
-    return res.status(403).json({ message: "Access denied" });
-  }
-
-  const name = req.body?.name;
-  const password = req.body?.password;
-
-  if (name !== undefined) {
-    user.name = String(name).trim() || user.name;
-  }
-
-  if (password !== undefined) {
-    const textPassword = String(password);
-    if (textPassword.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const { salt, hash } = hashPassword(textPassword);
-    user.passwordSalt = salt;
-    user.passwordHash = hash;
-  }
+    if (req.user.role !== "admin" && req.user.id !== id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
 
-  res.json(sanitizeUser(user));
+    res.json(sanitizeUser(result.rows[0]));
+  } catch (error) {
+    console.error("Get user error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
-app.delete("/users/:id", authMiddleware, adminOnly, (req, res) => {
-  const id = Number(req.params.id);
-  const index = users.findIndex((user) => user.id === id);
+app.put("/users/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const userResult = await dbQuery("SELECT * FROM users WHERE id = $1", [id]);
 
-  if (index === -1) {
-    return res.status(404).json({ message: "User not found" });
-  }
-
-  users.splice(index, 1);
-
-  for (let i = bookings.length - 1; i >= 0; i -= 1) {
-    if (bookings[i].userId === id) {
-      bookings.splice(i, 1);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
     }
-  }
 
-  for (const [token, userId] of sessions.entries()) {
-    if (userId === id) {
-      sessions.delete(token);
+    const user = userResult.rows[0];
+
+    if (req.user.role !== "admin" && req.user.id !== id) {
+      return res.status(403).json({ message: "Access denied" });
     }
-  }
 
-  res.status(204).send();
+    const name = req.body?.name;
+    const password = req.body?.password;
+
+    let updateQuery = "UPDATE users SET";
+    const params = [];
+    let paramCount = 1;
+
+    if (name !== undefined) {
+      const trimmedName = String(name).trim() || user.name;
+      updateQuery += ` name = $${paramCount++}`;
+      params.push(trimmedName);
+    }
+
+    if (password !== undefined) {
+      const textPassword = String(password);
+      if (textPassword.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      const { salt, hash } = hashPassword(textPassword);
+      if (params.length > 0) updateQuery += ",";
+      updateQuery += ` password_salt = $${paramCount++}, password_hash = $${paramCount++}`;
+      params.push(salt, hash);
+    }
+
+    if (params.length === 0) {
+      const result = await dbQuery("SELECT id, name, email, role FROM users WHERE id = $1", [id]);
+      return res.json(sanitizeUser(result.rows[0]));
+    }
+
+    updateQuery += ` WHERE id = $${paramCount}`;
+    params.push(id);
+
+    const result = await dbQuery(updateQuery + " RETURNING id, name, email, role", params);
+    res.json(sanitizeUser(result.rows[0]));
+  } catch (error) {
+    console.error("Update user error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
-app.get("/rooms", (req, res) => {
-  const city = String(req.query.city || "").trim().toLowerCase();
-  const guests = Number(req.query.guests || 0);
-  const checkInRaw = req.query.checkIn;
-  const checkOutRaw = req.query.checkOut;
+app.delete("/users/:id", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
 
-  let filtered = rooms;
-
-  if (city) {
-    filtered = filtered.filter((room) => room.city.toLowerCase().includes(city));
-  }
-
-  if (guests > 0) {
-    filtered = filtered.filter((room) => room.maxGuests >= guests);
-  }
-
-  if (checkInRaw && checkOutRaw) {
-    const checkIn = parseDate(checkInRaw);
-    const checkOut = parseDate(checkOutRaw);
-
-    if (!checkIn || !checkOut || checkOut <= checkIn) {
-      return res.status(400).json({ message: "Invalid date range" });
+    const userResult = await dbQuery("SELECT id FROM users WHERE id = $1", [id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    filtered = filtered.filter((room) => {
-      const roomBookings = bookings.filter((booking) => booking.roomId === room.id);
-      return roomBookings.every((booking) => {
-        const bookedIn = parseDate(booking.checkIn);
-        const bookedOut = parseDate(booking.checkOut);
-        return !overlap(checkIn, checkOut, bookedIn, bookedOut);
+    await dbQuery("DELETE FROM users WHERE id = $1", [id]);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Delete user error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Room Routes
+app.get("/rooms", async (req, res) => {
+  try {
+    const city = String(req.query.city || "").trim().toLowerCase();
+    const guests = Number(req.query.guests || 0);
+    const checkInRaw = req.query.checkIn;
+    const checkOutRaw = req.query.checkOut;
+
+    let query = "SELECT * FROM rooms WHERE 1=1";
+    const params = [];
+    let paramCount = 1;
+
+    if (city) {
+      query += ` AND LOWER(city) LIKE $${paramCount++}`;
+      params.push(`%${city}%`);
+    }
+
+    if (guests > 0) {
+      query += ` AND max_guests >= $${paramCount++}`;
+      params.push(guests);
+    }
+
+    const roomsResult = await dbQuery(query, params);
+    let filtered = roomsResult.rows;
+
+    if (checkInRaw && checkOutRaw) {
+      const checkIn = parseDate(checkInRaw);
+      const checkOut = parseDate(checkOutRaw);
+
+      if (!checkIn || !checkOut || checkOut <= checkIn) {
+        return res.status(400).json({ message: "Invalid date range" });
+      }
+
+      const bookingsResult = await dbQuery("SELECT * FROM bookings");
+      const bookings = bookingsResult.rows;
+
+      filtered = filtered.filter((room) => {
+        const roomBookings = bookings.filter((b) => b.room_id === room.id);
+        return roomBookings.every((booking) => {
+          const bookedIn = parseDate(booking.check_in);
+          const bookedOut = parseDate(booking.check_out);
+          return !overlap(checkIn, checkOut, bookedIn, bookedOut);
+        });
       });
-    });
-  }
-
-  res.json(filtered);
-});
-
-app.get("/rooms/:id", (req, res) => {
-  const room = rooms.find((item) => item.id === Number(req.params.id));
-  if (!room) {
-    return res.status(404).json({ message: "Room not found" });
-  }
-  res.json(room);
-});
-
-app.post("/rooms", authMiddleware, adminOnly, (req, res) => {
-  const validated = validateRoomPayload(req.body);
-  if (validated.error) {
-    return res.status(400).json({ message: validated.error });
-  }
-
-  const room = { id: roomIdCounter++, ...validated.room };
-  rooms.push(room);
-  res.status(201).json(room);
-});
-
-app.put("/rooms/:id", authMiddleware, adminOnly, (req, res) => {
-  const room = rooms.find((item) => item.id === Number(req.params.id));
-  if (!room) {
-    return res.status(404).json({ message: "Room not found" });
-  }
-
-  const validated = validateRoomPayload({ ...room, ...req.body });
-  if (validated.error) {
-    return res.status(400).json({ message: validated.error });
-  }
-
-  Object.assign(room, validated.room);
-  res.json(room);
-});
-
-app.delete("/rooms/:id", authMiddleware, adminOnly, (req, res) => {
-  const roomId = Number(req.params.id);
-  const index = rooms.findIndex((room) => room.id === roomId);
-  if (index === -1) {
-    return res.status(404).json({ message: "Room not found" });
-  }
-
-  rooms.splice(index, 1);
-  for (let i = bookings.length - 1; i >= 0; i -= 1) {
-    if (bookings[i].roomId === roomId) {
-      bookings.splice(i, 1);
     }
-  }
 
-  res.status(204).send();
+    res.json(filtered.map(serializeRoom));
+  } catch (error) {
+    console.error("Get rooms error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
-app.get("/bookings", authMiddleware, (req, res) => {
-  const result = (req.user.role === "admin" ? bookings : bookings.filter((b) => b.userId === req.user.id)).map((booking) => ({
-    ...booking,
-    room: rooms.find((room) => room.id === booking.roomId) || null,
-    user: sanitizeUser(users.find((user) => user.id === booking.userId) || { id: null, name: "Deleted", email: "deleted@user", role: "guest" })
-  }));
+app.get("/rooms/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const result = await dbQuery("SELECT * FROM rooms WHERE id = $1", [id]);
 
-  res.json(result);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    res.json(serializeRoom(result.rows[0]));
+  } catch (error) {
+    console.error("Get room error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
-app.get("/bookings/:id", authMiddleware, (req, res) => {
-  const id = Number(req.params.id);
-  const booking = bookings.find((item) => item.id === id);
-  if (!booking) {
-    return res.status(404).json({ message: "Booking not found" });
-  }
+app.post("/rooms", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const validated = validateRoomPayload(req.body);
+    if (validated.error) {
+      return res.status(400).json({ message: validated.error });
+    }
 
-  if (req.user.role !== "admin" && booking.userId !== req.user.id) {
-    return res.status(403).json({ message: "Access denied" });
-  }
+    const { name, city, pricePerNight, maxGuests, amenities } = validated.room;
 
-  res.json({
-    ...booking,
-    room: rooms.find((room) => room.id === booking.roomId) || null
-  });
+    const result = await dbQuery(
+      "INSERT INTO rooms (name, city, price_per_night, max_guests, amenities) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [name, city, pricePerNight, maxGuests, amenities]
+    );
+
+    res.status(201).json(serializeRoom(result.rows[0]));
+  } catch (error) {
+    console.error("Create room error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
-app.post("/bookings", authMiddleware, (req, res) => {
-  const prepared = buildBookingPayload(req.body);
-  if (prepared.error) {
-    return res.status(prepared.status || 400).json({ message: prepared.error });
+app.put("/rooms/:id", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const roomResult = await dbQuery("SELECT * FROM rooms WHERE id = $1", [id]);
+
+    if (roomResult.rows.length === 0) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    const room = roomResult.rows[0];
+    const validated = validateRoomPayload({ ...room, ...req.body });
+
+    if (validated.error) {
+      return res.status(400).json({ message: validated.error });
+    }
+
+    const { name, city, pricePerNight, maxGuests, amenities } = validated.room;
+
+    const result = await dbQuery(
+      "UPDATE rooms SET name = $1, city = $2, price_per_night = $3, max_guests = $4, amenities = $5 WHERE id = $6 RETURNING *",
+      [name, city, pricePerNight, maxGuests, amenities, id]
+    );
+
+    res.json(serializeRoom(result.rows[0]));
+  } catch (error) {
+    console.error("Update room error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
-
-  const { room, roomId, guests, checkIn, checkOut, nights } = prepared.payload;
-
-  if (hasBookingConflict({ roomId, checkIn, checkOut })) {
-    return res.status(409).json({ message: "Selected dates are already booked for this room" });
-  }
-
-  const booking = {
-    id: bookingIdCounter++,
-    userId: req.user.id,
-    roomId,
-    guests,
-    checkIn: normalizeISODate(checkIn),
-    checkOut: normalizeISODate(checkOut),
-    nights,
-    totalPrice: nights * room.pricePerNight,
-    createdAt: new Date().toISOString()
-  };
-
-  bookings.push(booking);
-  res.status(201).json({ ...booking, room });
 });
 
-app.put("/bookings/:id", authMiddleware, (req, res) => {
-  const id = Number(req.params.id);
-  const booking = bookings.find((item) => item.id === id);
-  if (!booking) {
-    return res.status(404).json({ message: "Booking not found" });
+app.delete("/rooms/:id", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const roomResult = await dbQuery("SELECT id FROM rooms WHERE id = $1", [id]);
+    if (roomResult.rows.length === 0) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    await dbQuery("DELETE FROM rooms WHERE id = $1", [id]);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Delete room error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
-
-  if (req.user.role !== "admin" && booking.userId !== req.user.id) {
-    return res.status(403).json({ message: "Access denied" });
-  }
-
-  const prepared = buildBookingPayload({ ...booking, ...req.body });
-  if (prepared.error) {
-    return res.status(prepared.status || 400).json({ message: prepared.error });
-  }
-
-  const { room, roomId, guests, checkIn, checkOut, nights } = prepared.payload;
-
-  if (hasBookingConflict({ roomId, checkIn, checkOut, ignoreBookingId: booking.id })) {
-    return res.status(409).json({ message: "Selected dates are already booked for this room" });
-  }
-
-  booking.roomId = roomId;
-  booking.guests = guests;
-  booking.checkIn = normalizeISODate(checkIn);
-  booking.checkOut = normalizeISODate(checkOut);
-  booking.nights = nights;
-  booking.totalPrice = nights * room.pricePerNight;
-
-  res.json({ ...booking, room });
 });
 
-app.delete("/bookings/:id", authMiddleware, (req, res) => {
-  const id = Number(req.params.id);
-  const index = bookings.findIndex((item) => item.id === id);
-  if (index === -1) {
-    return res.status(404).json({ message: "Booking not found" });
-  }
+// Booking Routes (one-to-many: room -> bookings)
+app.get("/bookings", authMiddleware, async (req, res) => {
+  try {
+    let query;
+    const params = [];
 
-  const booking = bookings[index];
-  if (req.user.role !== "admin" && booking.userId !== req.user.id) {
-    return res.status(403).json({ message: "Access denied" });
-  }
+    if (req.user.role === "admin") {
+      query = `
+        SELECT
+          b.id AS booking_id,
+          b.user_id,
+          b.room_id,
+          b.guests,
+          b.check_in,
+          b.check_out,
+          b.nights,
+          b.total_price,
+          b.created_at,
+          u.id AS user_id_ref,
+          u.name AS user_name,
+          u.email AS user_email,
+          u.role AS user_role,
+          r.id AS room_id_ref,
+          r.name AS room_name,
+          r.city,
+          r.price_per_night,
+          r.max_guests,
+          r.amenities
+        FROM bookings b
+        JOIN users u ON b.user_id = u.id
+        JOIN rooms r ON b.room_id = r.id
+      `;
+    } else {
+      query = `
+        SELECT
+          b.id AS booking_id,
+          b.user_id,
+          b.room_id,
+          b.guests,
+          b.check_in,
+          b.check_out,
+          b.nights,
+          b.total_price,
+          b.created_at,
+          u.id AS user_id_ref,
+          u.name AS user_name,
+          u.email AS user_email,
+          u.role AS user_role,
+          r.id AS room_id_ref,
+          r.name AS room_name,
+          r.city,
+          r.price_per_night,
+          r.max_guests,
+          r.amenities
+        FROM bookings b
+        JOIN users u ON b.user_id = u.id
+        JOIN rooms r ON b.room_id = r.id
+        WHERE b.user_id = $1
+      `;
+      params.push(req.user.id);
+    }
 
-  bookings.splice(index, 1);
-  res.status(204).send();
+    const result = await dbQuery(query, params);
+
+    const bookings = result.rows.map((row) => ({
+      id: row.booking_id,
+      userId: row.user_id,
+      roomId: row.room_id,
+      guests: row.guests,
+      checkIn: row.check_in,
+      checkOut: row.check_out,
+      nights: row.nights,
+      totalPrice: row.total_price,
+      createdAt: row.created_at,
+      room: {
+        id: row.room_id_ref,
+        name: row.room_name,
+        city: row.city,
+        pricePerNight: row.price_per_night,
+        maxGuests: row.max_guests,
+        amenities: row.amenities,
+      },
+      user: {
+        id: row.user_id_ref,
+        name: row.user_name,
+        email: row.user_email,
+        role: row.user_role,
+      },
+    }));
+
+    res.json(bookings);
+  } catch (error) {
+    console.error("Get bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.get("/bookings/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const result = await dbQuery(
+      `SELECT
+        b.id AS booking_id,
+        b.user_id,
+        b.room_id,
+        b.guests,
+        b.check_in,
+        b.check_out,
+        b.nights,
+        b.total_price,
+        b.created_at,
+        r.id AS room_id_ref,
+        r.name AS room_name,
+        r.city,
+        r.price_per_night,
+        r.max_guests,
+        r.amenities
+       FROM bookings b
+       JOIN rooms r ON b.room_id = r.id
+       WHERE b.id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const row = result.rows[0];
+
+    if (req.user.role !== "admin" && row.user_id !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const booking = {
+      id: row.booking_id,
+      userId: row.user_id,
+      roomId: row.room_id,
+      guests: row.guests,
+      checkIn: row.check_in,
+      checkOut: row.check_out,
+      nights: row.nights,
+      totalPrice: row.total_price,
+      createdAt: row.created_at,
+      room: {
+        id: row.room_id_ref,
+        name: row.room_name,
+        city: row.city,
+        pricePerNight: row.price_per_night,
+        maxGuests: row.max_guests,
+        amenities: row.amenities,
+      },
+    };
+
+    res.json(booking);
+  } catch (error) {
+    console.error("Get booking error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.post("/bookings", authMiddleware, async (req, res) => {
+  try {
+    const prepared = await buildBookingPayload(req.body);
+    if (prepared.error) {
+      return res.status(prepared.status || 400).json({ message: prepared.error });
+    }
+
+    const { room, roomId, guests, checkIn, checkOut, nights } = prepared.payload;
+
+    if (await hasBookingConflict({ roomId, checkIn, checkOut })) {
+      return res.status(409).json({ message: "Selected dates are already booked for this room" });
+    }
+
+    const result = await dbQuery(
+      `INSERT INTO bookings (user_id, room_id, guests, check_in, check_out, nights, total_price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        req.user.id,
+        roomId,
+        guests,
+        normalizeISODate(checkIn),
+        normalizeISODate(checkOut),
+        nights,
+        nights * room.price_per_night,
+      ]
+    );
+
+    const booking = result.rows[0];
+    res.status(201).json({
+      id: booking.id,
+      userId: booking.user_id,
+      roomId: booking.room_id,
+      guests: booking.guests,
+      checkIn: booking.check_in,
+      checkOut: booking.check_out,
+      nights: booking.nights,
+      totalPrice: booking.total_price,
+      createdAt: booking.created_at,
+      room,
+    });
+  } catch (error) {
+    console.error("Create booking error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.put("/bookings/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const bookingResult = await dbQuery("SELECT * FROM bookings WHERE id = $1", [id]);
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const booking = bookingResult.rows[0];
+
+    if (req.user.role !== "admin" && booking.user_id !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (req.body?.roomId !== undefined && Number(req.body.roomId) !== booking.room_id) {
+      return res.status(400).json({ message: "Room ID cannot be changed for an existing booking" });
+    }
+
+    const prepared = await buildBookingPayload({ ...booking, ...req.body, roomId: booking.room_id });
+    if (prepared.error) {
+      return res.status(prepared.status || 400).json({ message: prepared.error });
+    }
+
+    const { room, roomId, guests, checkIn, checkOut, nights } = prepared.payload;
+
+    if (await hasBookingConflict({ roomId, checkIn, checkOut, ignoreBookingId: id })) {
+      return res.status(409).json({ message: "Selected dates are already booked for this room" });
+    }
+
+    const result = await dbQuery(
+      `UPDATE bookings
+       SET room_id = $1, guests = $2, check_in = $3, check_out = $4, nights = $5, total_price = $6
+       WHERE id = $7
+       RETURNING *`,
+      [roomId, guests, normalizeISODate(checkIn), normalizeISODate(checkOut), nights, nights * room.price_per_night, id]
+    );
+
+    const updatedBooking = result.rows[0];
+    res.json({
+      id: updatedBooking.id,
+      userId: updatedBooking.user_id,
+      roomId: updatedBooking.room_id,
+      guests: updatedBooking.guests,
+      checkIn: updatedBooking.check_in,
+      checkOut: updatedBooking.check_out,
+      nights: updatedBooking.nights,
+      totalPrice: updatedBooking.total_price,
+      createdAt: updatedBooking.created_at,
+      room,
+    });
+  } catch (error) {
+    console.error("Update booking error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.delete("/bookings/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const bookingResult = await dbQuery("SELECT * FROM bookings WHERE id = $1", [id]);
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const booking = bookingResult.rows[0];
+
+    if (req.user.role !== "admin" && booking.user_id !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    await dbQuery("DELETE FROM bookings WHERE id = $1", [id]);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Delete booking error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  res.status(500).json({ message: "Internal server error" });
 });
 
 app.listen(PORT, () => {
-  console.log(`Hotel booking backend running on http://localhost:${PORT}`);
-  console.log("Demo users: admin@hotel.com/admin123, guest@hotel.com/guest123");
+  console.log(`🚀 Hotel booking backend running on http://localhost:${PORT}`);
+  console.log("📚 Demo users: admin@hotel.com/12345admin, guest@hotel.com/12345guest");
+  console.log("💾 Connected to PostgreSQL database");
 });

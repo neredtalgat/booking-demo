@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import {
   createRoom,
   deleteRoom,
@@ -6,7 +7,8 @@ import {
   getRooms,
   updateRoom
 } from "../api/client";
-import { useAuth } from "../context/AuthContext";
+import { addToast } from "../store/uiSlice";
+import ConfirmModal from "./ConfirmModal";
 
 const initialForm = {
   name: "",
@@ -17,15 +19,19 @@ const initialForm = {
 };
 
 export default function AdminRoomsPage() {
-  const { token } = useAuth();
+  const dispatch = useDispatch();
+  const token = useSelector((state) => state.auth.token);
   const [rooms, setRooms] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
   const [status, setStatus] = useState("");
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const loadRooms = async () => {
     const data = await getRooms({});
     setRooms(data);
+    dispatch(addToast(`Rooms loaded: ${data.length}`, "info"));
   };
 
   useEffect(() => {
@@ -53,15 +59,18 @@ export default function AdminRoomsPage() {
       if (editingId) {
         await updateRoom(token, editingId, payload);
         setStatus("Room updated.");
+        dispatch(addToast(`Room #${editingId} updated`, "success"));
       } else {
         await createRoom(token, payload);
         setStatus("Room created.");
+        dispatch(addToast("Room created", "success"));
       }
 
       resetForm();
       await loadRooms();
     } catch (err) {
       setStatus(err.message);
+      dispatch(addToast(err.message, "error"));
     }
   };
 
@@ -77,19 +86,31 @@ export default function AdminRoomsPage() {
         maxGuests: String(room.maxGuests),
         amenities: room.amenities.join(", ")
       });
+      dispatch(addToast(`Room #${id} opened for edit`, "info"));
     } catch (err) {
       setStatus(err.message);
+      dispatch(addToast(err.message, "error"));
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async () => {
+    if (!pendingDelete) {
+      return;
+    }
+
     setStatus("");
+    setDeleteBusy(true);
     try {
-      await deleteRoom(token, id);
-      setStatus(`Room #${id} deleted.`);
+      await deleteRoom(token, pendingDelete.id);
+      setStatus(`Room #${pendingDelete.id} deleted.`);
+      dispatch(addToast(`Room #${pendingDelete.id} deleted`, "success"));
+      setPendingDelete(null);
       await loadRooms();
     } catch (err) {
       setStatus(err.message);
+      dispatch(addToast(err.message, "error"));
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -131,11 +152,20 @@ export default function AdminRoomsPage() {
             <p className="muted">{room.amenities.join(", ")}</p>
             <div className="inline-actions">
               <button type="button" onClick={() => handleEdit(room.id)}>Edit</button>
-              <button type="button" onClick={() => handleDelete(room.id)}>Delete</button>
+              <button type="button" onClick={() => setPendingDelete(room)}>Delete</button>
             </div>
           </article>
         ))}
       </div>
+
+      <ConfirmModal
+        open={Boolean(pendingDelete)}
+        title={`Delete room #${pendingDelete?.id || ""}`}
+        description="Deleting room will also remove related bookings. Continue?"
+        busy={deleteBusy}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={handleDelete}
+      />
     </section>
   );
 }

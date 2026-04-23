@@ -1,25 +1,30 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
+import { useDispatch, useSelector } from "react-redux";
+import { logoutUser } from "../store/authSlice";
+import { addToast, toggleTheme } from "../store/uiSlice";
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const dispatch = useDispatch();
+  const { user, token } = useSelector((state) => state.auth);
+  const theme = useSelector((state) => state.ui.theme);
   const location = useLocation();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await dispatch(logoutUser(token));
+    dispatch(addToast("Logged out successfully", "success"));
     navigate("/login");
   };
 
   return (
     <header className="nav">
-      <div className="nav-brand">Hotel Booking System</div>
+      <Link className="nav-brand" to={user ? "/rooms" : "/login"}>
+        Hotel Booking System
+      </Link>
       <nav className="nav-links">
         {user && (
           <>
-            <Link className={location.pathname === "/rooms" ? "active" : ""} to="/rooms">
+            <Link className={location.pathname.startsWith("/rooms") ? "active" : ""} to="/rooms">
               Rooms
             </Link>
             <Link className={location.pathname === "/bookings" ? "active" : ""} to="/bookings">
@@ -34,7 +39,7 @@ export default function Navbar() {
         )}
       </nav>
       <div className="nav-actions">
-        <button type="button" onClick={toggleTheme}>Theme: {theme}</button>
+        <button type="button" onClick={() => dispatch(toggleTheme())}>Theme: {theme}</button>
         {user ? (
           <>
             <span className="user-email">{user.email} ({user.role})</span>

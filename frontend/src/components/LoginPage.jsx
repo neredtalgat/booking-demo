@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { loginUser, registerUser } from "../store/authSlice";
+import { addToast } from "../store/uiSlice";
 
 export default function LoginPage() {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -8,28 +10,30 @@ export default function LoginPage() {
   const [email, setEmail] = useState("guest@hotel.com");
   const [password, setPassword] = useState("12345guest");
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-
+  const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { login, register, loading } = useAuth();
+  const location = useLocation();
+  const { loading } = useSelector((state) => state.auth);
+  const destination = location.state?.from?.pathname || "/rooms";
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
-    setMessage("");
 
     try {
       if (isRegisterMode) {
-        await register({ name, email, password });
-        setMessage("Registration success. You can login now.");
+        await dispatch(registerUser({ name, email, password })).unwrap();
+        dispatch(addToast("Registration successful. Please sign in.", "success"));
         setIsRegisterMode(false);
         return;
       }
 
-      await login(email, password);
-      navigate("/rooms");
+      await dispatch(loginUser({ email, password })).unwrap();
+      dispatch(addToast("Login successful", "success"));
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err.message);
+      dispatch(addToast(err.message, "error"));
     }
   };
 
@@ -72,8 +76,6 @@ export default function LoginPage() {
         />
 
         {error && <p className="error">{error}</p>}
-        {message && <p className="status">{message}</p>}
-
         <button disabled={loading} type="submit">
           {loading ? "Please wait..." : isRegisterMode ? "Register" : "Login"}
         </button>

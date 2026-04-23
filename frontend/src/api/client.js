@@ -19,6 +19,16 @@ function authHeader(token) {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function normalizeRoom(room) {
+  if (!room) return room;
+  return {
+    ...room,
+    pricePerNight: room.pricePerNight ?? room.price_per_night,
+    maxGuests: room.maxGuests ?? room.max_guests,
+    amenities: Array.isArray(room.amenities) ? room.amenities : [],
+  };
+}
+
 export function register(payload) {
   return request("/auth/register", {
     method: "POST",
@@ -32,6 +42,13 @@ export function login(email, password) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password })
+  });
+}
+
+export function logout(token) {
+  return request("/auth/logout", {
+    method: "POST",
+    headers: { ...authHeader(token) }
   });
 }
 
@@ -49,11 +66,11 @@ export function getRooms(params) {
     }
   });
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return request(`/rooms${suffix}`);
+  return request(`/rooms${suffix}`).then((data) => data.map(normalizeRoom));
 }
 
 export function getRoomById(id) {
-  return request(`/rooms/${id}`);
+  return request(`/rooms/${id}`).then(normalizeRoom);
 }
 
 export function createRoom(token, payload) {

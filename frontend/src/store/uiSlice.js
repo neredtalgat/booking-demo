@@ -1,7 +1,18 @@
 import { createSlice } from "@reduxjs/toolkit";
 
+const THEME_STORAGE_KEY = "hotel_theme";
+
+function getInitialTheme() {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const saved = localStorage.getItem(THEME_STORAGE_KEY);
+  return saved === "dark" || saved === "light" ? saved : "light";
+}
+
 const initialState = {
-  theme: "light",
+  theme: getInitialTheme(),
   toasts: []
 };
 

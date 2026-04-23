@@ -1,0 +1,20 @@
+{
+  "name": "hotel-booking-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "migrate": "node src/migrate.js",
+    "seed:rooms": "node src/seedRooms.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "pg": "^8.11.3",
+    "jsonwebtoken": "^8.5.1",
+    "express-rate-limit": "^6.7.0",
+    "dotenv": "^16.3.1"
+  }
+}

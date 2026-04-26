@@ -19,19 +19,46 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   return { salt, hash };
 }
 
+function categorySeedData() {
+  return [
+    "Standard",
+    "Economy",
+    "Deluxe",
+    "Luxury",
+    "Suite",
+    "Studio",
+    "Apartment",
+    "Villa",
+  ];
+}
+
 function roomSeedData() {
   return [
-    ["Deluxe City View", "Almaty", 120.0, 2, ["Wi-Fi", "Breakfast", "Air conditioning"]],
-    ["Family Suite", "Astana", 180.0, 4, ["Wi-Fi", "Breakfast", "Kitchen", "Parking"]],
-    ["Business Room", "Shymkent", 90.0, 2, ["Wi-Fi", "Desk", "Airport shuttle"]],
-    ["Lake View Studio", "Borovoe", 140.0, 2, ["Wi-Fi", "Balcony", "Breakfast"]],
-    ["City Center Loft", "Almaty", 160.0, 3, ["Wi-Fi", "Kitchen", "Washer"]],
-    ["Budget Twin", "Karaganda", 65.0, 2, ["Wi-Fi", "Heating"]],
-    ["Royal Suite", "Astana", 260.0, 4, ["Wi-Fi", "Spa", "Breakfast", "Parking"]],
-    ["Mountain Cabin", "Almaty", 200.0, 5, ["Fireplace", "Kitchen", "Parking"]],
-    ["Airport Express Room", "Shymkent", 85.0, 2, ["Wi-Fi", "Shuttle", "Breakfast"]],
-    ["Seaside Apartment", "Aktau", 170.0, 4, ["Wi-Fi", "Kitchen", "Sea view"]],
+    ["Deluxe City View", "Almaty", 120.0, 2, ["Wi-Fi", "Breakfast", "Air conditioning"], "Deluxe"],
+    ["Family Suite", "Astana", 180.0, 4, ["Wi-Fi", "Breakfast", "Kitchen", "Parking"], "Suite"],
+    ["Business Room", "Shymkent", 90.0, 2, ["Wi-Fi", "Desk", "Airport shuttle"], "Standard"],
+    ["Lake View Studio", "Borovoe", 140.0, 2, ["Wi-Fi", "Balcony", "Breakfast"], "Studio"],
+    ["City Center Loft", "Almaty", 160.0, 3, ["Wi-Fi", "Kitchen", "Washer"], "Apartment"],
+    ["Budget Twin", "Karaganda", 65.0, 2, ["Wi-Fi", "Heating"], "Economy"],
+    ["Royal Suite", "Astana", 260.0, 4, ["Wi-Fi", "Spa", "Breakfast", "Parking"], "Luxury"],
+    ["Mountain Cabin", "Almaty", 200.0, 5, ["Fireplace", "Kitchen", "Parking"], "Villa"],
+    ["Airport Express Room", "Shymkent", 85.0, 2, ["Wi-Fi", "Shuttle", "Breakfast"], "Standard"],
+    ["Seaside Apartment", "Aktau", 170.0, 4, ["Wi-Fi", "Kitchen", "Sea view"], "Apartment"],
   ];
+}
+
+async function ensureCategoriesSeed(appClient) {
+  const categories = categorySeedData();
+
+  // Clear existing categories to ensure clean state
+  await appClient.query(`DELETE FROM categories`);
+
+  for (const categoryName of categories) {
+    await appClient.query(
+      `INSERT INTO categories (name) VALUES ($1)`,
+      [categoryName]
+    );
+  }
 }
 
 async function ensureRoomsSeed(appClient) {
@@ -73,7 +100,8 @@ async function ensureRoomsSeed(appClient) {
       ALTER COLUMN name SET NOT NULL,
       ALTER COLUMN city SET NOT NULL,
       ALTER COLUMN price_per_night SET NOT NULL,
-      ALTER COLUMN max_guests SET NOT NULL;
+      ALTER COLUMN max_guests SET NOT NULL,
+      ALTER COLUMN category_id SET NOT NULL;
   `);
 
   await appClient.query(`
@@ -94,26 +122,32 @@ async function ensureRoomsSeed(appClient) {
   `);
 
   const seeds = roomSeedData();
-  const placeholders = seeds
-    .map((_, idx) => {
-      const start = idx * 5;
-      return `($${start + 1}, $${start + 2}, $${start + 3}, $${start + 4}, $${start + 5})`;
-    })
-    .join(",\n");
 
-  const values = seeds.flatMap((item) => item);
+  for (const [name, city, price, guests, amenities, categoryName] of seeds) {
+    const categoryResult = await appClient.query(
+      `SELECT id FROM categories WHERE name = $1`,
+      [categoryName]
+    );
 
-  await appClient.query(
-    `
-      INSERT INTO rooms (name, city, price_per_night, max_guests, amenities)
-      VALUES ${placeholders}
-      ON CONFLICT (name, city) DO UPDATE SET
-        price_per_night = EXCLUDED.price_per_night,
-        max_guests = EXCLUDED.max_guests,
-        amenities = EXCLUDED.amenities;
-    `,
-    values
-  );
+    if (categoryResult.rows.length === 0) {
+      console.warn(`Category "${categoryName}" not found for room "${name}"`);
+      continue;
+    }
+
+    const categoryId = categoryResult.rows[0].id;
+
+    await appClient.query(
+      `INSERT INTO rooms (name, city, price_per_night, max_guests, amenities, category_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (name, city) DO UPDATE SET
+         price_per_night = EXCLUDED.price_per_night,
+         max_guests = EXCLUDED.max_guests,
+         amenities = EXCLUDED.amenities,
+         category_id = EXCLUDED.category_id;
+      `,
+      [name, city, price, guests, amenities, categoryId]
+    );
+  }
 }
 
 async function migrate() {
@@ -160,6 +194,14 @@ async function migrate() {
       `);
 
       await appClient.query(`
+        CREATE TABLE IF NOT EXISTS categories (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) UNIQUE NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await appClient.query(`
         CREATE TABLE IF NOT EXISTS rooms (
           id SERIAL PRIMARY KEY,
           name VARCHAR(255),
@@ -167,8 +209,17 @@ async function migrate() {
           price_per_night DECIMAL(10, 2),
           max_guests INTEGER,
           amenities TEXT[] DEFAULT ARRAY[]::TEXT[],
+          category_id INTEGER REFERENCES categories(id) ON DELETE RESTRICT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
+      `);
+
+      await appClient.query(`
+        DELETE FROM rooms;
+      `);
+
+      await appClient.query(`
+        CREATE INDEX IF NOT EXISTS idx_rooms_category_id ON rooms(category_id);
       `);
 
       await appClient.query(`
@@ -229,6 +280,7 @@ async function migrate() {
         ]
       );
 
+      await ensureCategoriesSeed(appClient);
       await ensureRoomsSeed(appClient);
 
       console.log("Migration completed successfully");

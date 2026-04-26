@@ -223,6 +223,7 @@
 }
 
 input,
+select,
 button {
   border: 1px solid #95a8bf;
   border-radius: var(--radius-sm);
@@ -230,18 +231,34 @@ button {
   font: inherit;
 }
 
-input {
+input,
+select {
   background: rgba(255, 255, 255, 0.88);
   color: inherit;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.app--dark input {
-  background: rgba(255, 255, 255, 0.06);
+select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23122033' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.app--dark input,
+.app--dark select {
+  background-color: rgba(255, 255, 255, 0.06);
   border-color: rgba(197, 214, 234, 0.3);
 }
 
+.app--dark select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23deebfb' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+}
+
 input:focus,
+select:focus,
 button:focus-visible,
 a:focus-visible {
   outline: none;

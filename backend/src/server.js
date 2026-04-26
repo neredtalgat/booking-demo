@@ -102,6 +102,8 @@ function serializeRoom(row) {
     pricePerNight: Number(row.price_per_night),
     maxGuests: row.max_guests,
     amenities: Array.isArray(row.amenities) ? row.amenities : [],
+    categoryId: row.category_id,
+    categoryName: row.category_name || "Unknown",
     createdAt: row.created_at,
   };
 }
@@ -153,6 +155,7 @@ function validateRoomPayload(payload) {
   const city = String(payload?.city || "").trim();
   const pricePerNight = Number(payload?.pricePerNight);
   const maxGuests = Number(payload?.maxGuests);
+  const categoryId = Number(payload?.categoryId);
   const amenitiesInput = payload?.amenities;
   const amenities = Array.isArray(amenitiesInput)
     ? amenitiesInput.map((item) => String(item).trim()).filter(Boolean)
@@ -165,13 +168,18 @@ function validateRoomPayload(payload) {
     return { error: "name, city, pricePerNight, maxGuests are required" };
   }
 
+  if (!Number.isFinite(categoryId) || categoryId < 1) {
+    return { error: "categoryId is required and must be a valid category" };
+  }
+
   return {
     room: {
       name,
       city,
       pricePerNight,
       maxGuests,
-      amenities
+      amenities,
+      categoryId
     }
   };
 }
@@ -411,25 +419,131 @@ app.delete("/users/:id", authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
+// Category Routes
+app.get("/categories", async (req, res) => {
+  try {
+    const result = await dbQuery("SELECT id, name, created_at FROM categories ORDER BY name");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Get categories error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.get("/categories/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const result = await dbQuery("SELECT id, name, created_at FROM categories WHERE id = $1", [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Get category error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.post("/categories", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const name = String(req.body?.name || "").trim();
+
+    if (!name) {
+      return res.status(400).json({ message: "Category name is required" });
+    }
+
+    const result = await dbQuery(
+      "INSERT INTO categories (name) VALUES ($1) RETURNING id, name, created_at",
+      [name]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Category with this name already exists" });
+    }
+    console.error("Create category error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.put("/categories/:id", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const name = String(req.body?.name || "").trim();
+
+    if (!name) {
+      return res.status(400).json({ message: "Category name is required" });
+    }
+
+    const result = await dbQuery(
+      "UPDATE categories SET name = $1 WHERE id = $2 RETURNING id, name, created_at",
+      [name, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Category with this name already exists" });
+    }
+    console.error("Update category error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.delete("/categories/:id", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const roomCheck = await dbQuery("SELECT id FROM rooms WHERE category_id = $1 LIMIT 1", [id]);
+    if (roomCheck.rows.length > 0) {
+      return res.status(409).json({ message: "Cannot delete category with existing rooms" });
+    }
+
+    const result = await dbQuery("DELETE FROM categories WHERE id = $1", [id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    console.error("Delete category error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // Room Routes
 app.get("/rooms", async (req, res) => {
   try {
     const city = String(req.query.city || "").trim().toLowerCase();
     const guests = Number(req.query.guests || 0);
+    const categoryId = Number(req.query.categoryId || 0);
     const checkInRaw = req.query.checkIn;
     const checkOutRaw = req.query.checkOut;
 
-    let query = "SELECT * FROM rooms WHERE 1=1";
+    let query = "SELECT r.*, c.name as category_name FROM rooms r LEFT JOIN categories c ON r.category_id = c.id WHERE 1=1";
     const params = [];
     let paramCount = 1;
 
     if (city) {
-      query += ` AND LOWER(city) LIKE $${paramCount++}`;
+      query += ` AND LOWER(r.city) LIKE $${paramCount++}`;
       params.push(`%${city}%`);
     }
 
+    if (categoryId > 0) {
+      query += ` AND r.category_id = $${paramCount++}`;
+      params.push(categoryId);
+    }
+
     if (guests > 0) {
-      query += ` AND max_guests >= $${paramCount++}`;
+      query += ` AND r.max_guests >= $${paramCount++}`;
       params.push(guests);
     }
 
@@ -467,7 +581,7 @@ app.get("/rooms", async (req, res) => {
 app.get("/rooms/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const result = await dbQuery("SELECT * FROM rooms WHERE id = $1", [id]);
+    const result = await dbQuery("SELECT r.*, c.name as category_name FROM rooms r LEFT JOIN categories c ON r.category_id = c.id WHERE r.id = $1", [id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Room not found" });
@@ -487,11 +601,16 @@ app.post("/rooms", authMiddleware, adminOnly, async (req, res) => {
       return res.status(400).json({ message: validated.error });
     }
 
-    const { name, city, pricePerNight, maxGuests, amenities } = validated.room;
+    const { name, city, pricePerNight, maxGuests, amenities, categoryId } = validated.room;
+
+    const categoryResult = await dbQuery("SELECT id FROM categories WHERE id = $1", [categoryId]);
+    if (categoryResult.rows.length === 0) {
+      return res.status(400).json({ message: "Invalid category ID" });
+    }
 
     const result = await dbQuery(
-      "INSERT INTO rooms (name, city, price_per_night, max_guests, amenities) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [name, city, pricePerNight, maxGuests, amenities]
+      "INSERT INTO rooms (name, city, price_per_night, max_guests, amenities, category_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING * , (SELECT name FROM categories WHERE id = $6) as category_name",
+      [name, city, pricePerNight, maxGuests, amenities, categoryId]
     );
 
     res.status(201).json(serializeRoom(result.rows[0]));
@@ -511,17 +630,22 @@ app.put("/rooms/:id", authMiddleware, adminOnly, async (req, res) => {
     }
 
     const room = roomResult.rows[0];
-    const validated = validateRoomPayload({ ...room, ...req.body });
+    const validated = validateRoomPayload({ ...room, pricePerNight: room.price_per_night, maxGuests: room.max_guests, categoryId: room.category_id, ...req.body });
 
     if (validated.error) {
       return res.status(400).json({ message: validated.error });
     }
 
-    const { name, city, pricePerNight, maxGuests, amenities } = validated.room;
+    const { name, city, pricePerNight, maxGuests, amenities, categoryId } = validated.room;
+
+    const categoryResult = await dbQuery("SELECT id FROM categories WHERE id = $1", [categoryId]);
+    if (categoryResult.rows.length === 0) {
+      return res.status(400).json({ message: "Invalid category ID" });
+    }
 
     const result = await dbQuery(
-      "UPDATE rooms SET name = $1, city = $2, price_per_night = $3, max_guests = $4, amenities = $5 WHERE id = $6 RETURNING *",
-      [name, city, pricePerNight, maxGuests, amenities, id]
+      "UPDATE rooms SET name = $1, city = $2, price_per_night = $3, max_guests = $4, amenities = $5, category_id = $6 WHERE id = $7 RETURNING *, (SELECT name FROM categories WHERE id = $6) as category_name",
+      [name, city, pricePerNight, maxGuests, amenities, categoryId, id]
     );
 
     res.json(serializeRoom(result.rows[0]));

@@ -26,6 +26,7 @@ function normalizeRoom(room) {
     pricePerNight: room.pricePerNight ?? room.price_per_night,
     maxGuests: room.maxGuests ?? room.max_guests,
     amenities: Array.isArray(room.amenities) ? room.amenities : [],
+    categoryId: room.categoryId ?? room.category_id,
   };
 }
 
@@ -67,6 +68,37 @@ export function getRooms(params) {
   });
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return request(`/rooms${suffix}`).then((data) => data.map(normalizeRoom));
+}
+
+export function getCategories() {
+  return request("/categories");
+}
+
+export function getCategoryById(id) {
+  return request(`/categories/${id}`);
+}
+
+export function createCategory(token, payload) {
+  return request("/categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader(token) },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateCategory(token, id, payload) {
+  return request(`/categories/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeader(token) },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteCategory(token, id) {
+  return request(`/categories/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeader(token) }
+  });
 }
 
 export function getRoomById(id) {

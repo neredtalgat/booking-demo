@@ -5,7 +5,8 @@ import {
   deleteRoom,
   getRoomById,
   getRooms,
-  updateRoom
+  updateRoom,
+  getCategories
 } from "../api/client";
 import { addToast } from "../store/uiSlice";
 import ConfirmModal from "./ConfirmModal";
@@ -15,13 +16,15 @@ const initialForm = {
   city: "",
   pricePerNight: "",
   maxGuests: "",
-  amenities: "Wi-Fi"
+  amenities: "Wi-Fi",
+  categoryId: ""
 };
 
 export default function AdminRoomsPage() {
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
   const [rooms, setRooms] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
   const [status, setStatus] = useState("");
@@ -35,24 +38,44 @@ export default function AdminRoomsPage() {
   };
 
   useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const data = await getCategories();
+        setCategories(data);
+        if (data.length > 0 && !form.categoryId) {
+          setForm((prev) => ({ ...prev, categoryId: String(data[0].id) }));
+        }
+      } catch (err) {
+        console.error("Failed to load categories:", err);
+      }
+    };
+
+    loadCategories();
     loadRooms().catch((err) => setStatus(err.message));
   }, []);
 
   const resetForm = () => {
     setEditingId(null);
-    setForm(initialForm);
+    setForm({ ...initialForm, categoryId: categories.length > 0 ? String(categories[0].id) : "" });
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setStatus("");
 
+    if (!form.categoryId) {
+      setStatus("Category is required");
+      dispatch(addToast("Category is required", "error"));
+      return;
+    }
+
     const payload = {
       name: form.name,
       city: form.city,
       pricePerNight: Number(form.pricePerNight),
       maxGuests: Number(form.maxGuests),
-      amenities: form.amenities
+      amenities: form.amenities,
+      categoryId: Number(form.categoryId)
     };
 
     try {
@@ -84,7 +107,8 @@ export default function AdminRoomsPage() {
         city: room.city,
         pricePerNight: String(room.pricePerNight),
         maxGuests: String(room.maxGuests),
-        amenities: room.amenities.join(", ")
+        amenities: room.amenities.join(", "),
+        categoryId: String(room.categoryId)
       });
       dispatch(addToast(`Room #${id} opened for edit`, "info"));
     } catch (err) {
@@ -130,6 +154,14 @@ export default function AdminRoomsPage() {
         <label>Max guests</label>
         <input type="number" min="1" value={form.maxGuests} onChange={(e) => setForm((p) => ({ ...p, maxGuests: e.target.value }))} required />
 
+        <label>Category</label>
+        <select value={form.categoryId} onChange={(e) => setForm((p) => ({ ...p, categoryId: e.target.value }))} required>
+          <option value="">Select a category</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
+        </select>
+
         <label>Amenities (comma separated)</label>
         <input value={form.amenities} onChange={(e) => setForm((p) => ({ ...p, amenities: e.target.value }))} required />
 
@@ -147,7 +179,7 @@ export default function AdminRoomsPage() {
         {rooms.map((room) => (
           <article key={room.id} className="card">
             <h3>{room.name}</h3>
-            <p>{room.city} | ${room.pricePerNight} / night</p>
+            <p><strong>{room.categoryName}</strong> | {room.city} | ${room.pricePerNight} / night</p>
             <p>Guests: up to {room.maxGuests}</p>
             <p className="muted">{room.amenities.join(", ")}</p>
             <div className="inline-actions">

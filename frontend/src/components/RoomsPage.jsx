@@ -1,16 +1,30 @@
 import { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { getRooms } from "../api/client";
+import { getRooms, getCategories } from "../api/client";
 import { addToast } from "../store/uiSlice";
 
 export default function RoomsPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState({ city: "", guests: "", checkIn: "", checkOut: "" });
+  const [search, setSearch] = useState({ city: "", guests: "", checkIn: "", checkOut: "", categoryId: "" });
   const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const data = await getCategories();
+        setCategories(data);
+      } catch (err) {
+        console.error("Failed to load categories:", err);
+      }
+    };
+    loadCategories();
+    loadRooms({});
+  }, []);
 
   const loadRooms = async (params) => {
     setLoading(true);
@@ -30,13 +44,15 @@ export default function RoomsPage() {
     }
   };
 
-  useEffect(() => {
-    loadRooms({});
-  }, []);
-
   const handleSearch = (event) => {
     event.preventDefault();
-    loadRooms(search);
+    const params = {};
+    if (search.city) params.city = search.city;
+    if (search.guests) params.guests = search.guests;
+    if (search.checkIn) params.checkIn = search.checkIn;
+    if (search.checkOut) params.checkOut = search.checkOut;
+    if (search.categoryId) params.categoryId = search.categoryId;
+    loadRooms(params);
   };
 
   return (
@@ -61,6 +77,19 @@ export default function RoomsPage() {
         </div>
 
         <div className="form-stack compact">
+          <label>Category</label>
+          <select
+            value={search.categoryId}
+            onChange={(e) => setSearch((prev) => ({ ...prev, categoryId: e.target.value }))}
+          >
+            <option value="">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-stack compact">
           <label>Check-in</label>
           <input type="date" value={search.checkIn} onChange={(e) => setSearch((prev) => ({ ...prev, checkIn: e.target.value }))} />
         </div>
@@ -80,7 +109,7 @@ export default function RoomsPage() {
         {rooms.map((room) => (
           <article className="card room-card" key={room.id}>
             <h3>{room.name}</h3>
-            <p>{room.city}</p>
+            <p><strong>{room.categoryName}</strong> | {room.city}</p>
             <p>${room.pricePerNight} / night</p>
             <p>Guests up to {room.maxGuests}</p>
             <p className="muted">{room.amenities.join(", ")}</p>

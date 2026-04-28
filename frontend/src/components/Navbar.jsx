@@ -31,9 +31,14 @@ export default function Navbar() {
               My bookings
             </Link>
             {user.role === "admin" && (
-              <Link className={location.pathname === "/admin/rooms" ? "active" : ""} to="/admin/rooms">
-                Manage rooms
-              </Link>
+              <>
+                <Link className={location.pathname === "/admin/rooms" ? "active" : ""} to="/admin/rooms">
+                  Manage rooms
+                </Link>
+                <Link className={location.pathname === "/admin/categories" ? "active" : ""} to="/admin/categories">
+                  Manage categories
+                </Link>
+              </>
             )}
           </>
         )}

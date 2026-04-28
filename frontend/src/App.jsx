@@ -7,6 +7,7 @@ import RoomsPage from "./components/RoomsPage";
 import RoomDetailsPage from "./components/RoomDetailsPage";
 import MyBookingsPage from "./components/MyBookingsPage";
 import AdminRoomsPage from "./components/AdminRoomsPage";
+import AdminCategoriesPage from "./components/AdminCategoriesPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ToastContainer from "./components/ToastContainer";
 import { restoreSession } from "./store/authSlice";
@@ -38,6 +39,7 @@ export default function App() {
 
           <Route element={<ProtectedRoute requireAuth roles={["admin"]} />}>
             <Route path="/admin/rooms" element={<AdminRoomsPage />} />
+            <Route path="/admin/categories" element={<AdminCategoriesPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to={user ? "/rooms" : "/login"} replace />} />

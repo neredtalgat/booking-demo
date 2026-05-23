@@ -263,12 +263,27 @@ button:disabled {
 }
 
 .btn-text {
-  background: transparent;
+  background: white !important;
   color: inherit;
   border: none;
   text-decoration: underline;
   padding-left: 0;
   box-shadow: none;
+  
+}
+
+.btn-log {
+  color: black;
+  background: white;
+  border: none;
+  text-decoration: underline;
+  padding-left: 0;
+  box-shadow: none;
+}
+
+.btn-log:hover {
+  background: white;
+  border-color: transparent;
 }
 
 .inline-actions {

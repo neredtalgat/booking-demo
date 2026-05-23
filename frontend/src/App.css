@@ -360,6 +360,25 @@ button:disabled {
   transition: border-color 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
 }
 
+/* White chevron arrow for select on glass background */
+.search-glass select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E") !important;
+  background-size: 10px 6px !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+}
+
+/* Dropdown option list — dark background so it looks intentional */
+.search-glass select option {
+  background-color: #1a2e48;
+  color: #ddeeff;
+}
+
+.search-glass select option:checked {
+  background-color: #2a4a6e;
+  color: #fff;
+}
+
 .search-glass input::placeholder {
   color: rgba(255, 255, 255, 0.35);
 }
@@ -371,12 +390,13 @@ button:disabled {
   background: rgba(255, 255, 255, 0.16) !important;
 }
 
+/* 6-column inline layout: city | guests | category | check-in | check-out | button */
 .search-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: 1fr 0.6fr 1.2fr 1fr 1fr auto;
   gap: 14px;
   align-items: end;
-  padding: 22px;
+  padding: 22px 24px;
 }
 
 .search-grid label {
@@ -1069,9 +1089,15 @@ form.card.form-stack .inline-actions {
     font-size: 1.5rem;
   }
 
+  /* Tablet: 2-column grid, button full width */
   .search-grid {
-    grid-template-columns: 1fr;
-    padding: 16px;
+    grid-template-columns: 1fr 1fr;
+    padding: 18px;
+    gap: 12px;
+  }
+
+  .search-grid > button[type="submit"] {
+    grid-column: 1 / -1;
   }
 
   .nav {
@@ -1081,5 +1107,13 @@ form.card.form-stack .inline-actions {
 
   .app-main {
     padding: 20px 14px 32px;
+  }
+}
+
+@media (max-width: 520px) {
+  /* Mobile: single column */
+  .search-grid {
+    grid-template-columns: 1fr;
+    padding: 14px;
   }
 }

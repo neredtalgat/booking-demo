@@ -6,6 +6,7 @@ import LoginPage from "./components/LoginPage";
 import RoomsPage from "./components/RoomsPage";
 import RoomDetailsPage from "./components/RoomDetailsPage";
 import MyBookingsPage from "./components/MyBookingsPage";
+import FavoritesPage from "./components/FavoritesPage";
 import AdminRoomsPage from "./components/AdminRoomsPage";
 import AdminCategoriesPage from "./components/AdminCategoriesPage";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="/rooms" element={<RoomsPage />} />
             <Route path="/rooms/:id" element={<RoomDetailsPage />} />
             <Route path="/bookings" element={<MyBookingsPage />} />
+            <Route path="/favorites" element={<FavoritesPage />} />
           </Route>
 
           <Route element={<ProtectedRoute requireAuth roles={["admin"]} />}>

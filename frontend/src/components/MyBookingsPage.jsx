@@ -9,6 +9,16 @@ import {
 import { addToast } from "../store/uiSlice";
 import ConfirmModal from "./ConfirmModal";
 
+function fmtDate(str) {
+  if (!str) return "";
+  return new Date(str).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export default function MyBookingsPage() {
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
@@ -126,7 +136,7 @@ export default function MyBookingsPage() {
             ) : (
               <>
                 <p>
-                  {booking.checkIn} - {booking.checkOut}
+                  {fmtDate(booking.checkIn)} — {fmtDate(booking.checkOut)}
                 </p>
                 <p>Guests: {booking.guests}</p>
                 <p>Total: ${booking.totalPrice}</p>
@@ -148,7 +158,7 @@ export default function MyBookingsPage() {
             <button type="button" onClick={() => setDetail(null)}>Close</button>
           </div>
           <p>Room ID: {detail.roomId}</p>
-          <p>Dates: {detail.checkIn} - {detail.checkOut}</p>
+          <p>Dates: {fmtDate(detail.checkIn)} — {fmtDate(detail.checkOut)}</p>
           <p>Guests: {detail.guests}</p>
           <p>Total: ${detail.totalPrice}</p>
         </section>

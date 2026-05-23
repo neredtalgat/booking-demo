@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8080";
+export const BASE_URL = "http://localhost:8080";
 
 async function request(path, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, options);
@@ -27,6 +27,7 @@ function normalizeRoom(room) {
     maxGuests: room.maxGuests ?? room.max_guests,
     amenities: Array.isArray(room.amenities) ? room.amenities : [],
     categoryId: room.categoryId ?? room.category_id,
+    imageUrl: room.imageUrl ?? room.image_url ?? null,
   };
 }
 
@@ -164,6 +165,26 @@ export function updateBooking(token, id, payload) {
 
 export function deleteBooking(token, id) {
   return request(`/bookings/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeader(token) }
+  });
+}
+
+export function getFavorites(token) {
+  return request("/favorites", {
+    headers: { ...authHeader(token) }
+  }).then((data) => data.map(normalizeRoom));
+}
+
+export function addFavorite(token, roomId) {
+  return request(`/favorites/${roomId}`, {
+    method: "POST",
+    headers: { ...authHeader(token) }
+  });
+}
+
+export function removeFavorite(token, roomId) {
+  return request(`/favorites/${roomId}`, {
     method: "DELETE",
     headers: { ...authHeader(token) }
   });

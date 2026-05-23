@@ -1,15 +1,24 @@
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import express from "express";
 import cors from "cors";
 import jwt from "jsonwebtoken";
+import multer from "multer";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { query as dbQuery } from "./database.js";
 
 dotenv.config();
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadsDir = path.resolve(__dirname, "..", "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
 const app = express();
 const PORT = process.env.PORT || 8080;
+const BACKEND_URL = process.env.BACKEND_URL || `http://localhost:${PORT}`;
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
@@ -36,6 +45,27 @@ const authLimiter = rateLimit({
 app.use(limiter);
 app.use("/auth/login", authLimiter);
 app.use("/auth/register", authLimiter);
+
+// Static uploads
+app.use("/uploads", express.static(uploadsDir));
+
+// Multer
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
 
 function parseDate(value) {
   const date = new Date(value);
@@ -104,6 +134,7 @@ function serializeRoom(row) {
     amenities: Array.isArray(row.amenities) ? row.amenities : [],
     categoryId: row.category_id,
     categoryName: row.category_name || "Unknown",
+    imageUrl: row.image_url || null,
     createdAt: row.created_at,
   };
 }
@@ -156,6 +187,7 @@ function validateRoomPayload(payload) {
   const pricePerNight = Number(payload?.pricePerNight);
   const maxGuests = Number(payload?.maxGuests);
   const categoryId = Number(payload?.categoryId);
+  const imageUrl = payload?.imageUrl ? String(payload.imageUrl).trim() : null;
   const amenitiesInput = payload?.amenities;
   const amenities = Array.isArray(amenitiesInput)
     ? amenitiesInput.map((item) => String(item).trim()).filter(Boolean)
@@ -179,7 +211,8 @@ function validateRoomPayload(payload) {
       pricePerNight,
       maxGuests,
       amenities,
-      categoryId
+      categoryId,
+      imageUrl,
     }
   };
 }
@@ -601,7 +634,7 @@ app.post("/rooms", authMiddleware, adminOnly, async (req, res) => {
       return res.status(400).json({ message: validated.error });
     }
 
-    const { name, city, pricePerNight, maxGuests, amenities, categoryId } = validated.room;
+    const { name, city, pricePerNight, maxGuests, amenities, categoryId, imageUrl } = validated.room;
 
     const categoryResult = await dbQuery("SELECT id FROM categories WHERE id = $1", [categoryId]);
     if (categoryResult.rows.length === 0) {
@@ -609,8 +642,8 @@ app.post("/rooms", authMiddleware, adminOnly, async (req, res) => {
     }
 
     const result = await dbQuery(
-      "INSERT INTO rooms (name, city, price_per_night, max_guests, amenities, category_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING * , (SELECT name FROM categories WHERE id = $6) as category_name",
-      [name, city, pricePerNight, maxGuests, amenities, categoryId]
+      "INSERT INTO rooms (name, city, price_per_night, max_guests, amenities, category_id, image_url) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *, (SELECT name FROM categories WHERE id = $6) as category_name",
+      [name, city, pricePerNight, maxGuests, amenities, categoryId, imageUrl]
     );
 
     res.status(201).json(serializeRoom(result.rows[0]));
@@ -630,13 +663,13 @@ app.put("/rooms/:id", authMiddleware, adminOnly, async (req, res) => {
     }
 
     const room = roomResult.rows[0];
-    const validated = validateRoomPayload({ ...room, pricePerNight: room.price_per_night, maxGuests: room.max_guests, categoryId: room.category_id, ...req.body });
+    const validated = validateRoomPayload({ ...room, pricePerNight: room.price_per_night, maxGuests: room.max_guests, categoryId: room.category_id, imageUrl: room.image_url, ...req.body });
 
     if (validated.error) {
       return res.status(400).json({ message: validated.error });
     }
 
-    const { name, city, pricePerNight, maxGuests, amenities, categoryId } = validated.room;
+    const { name, city, pricePerNight, maxGuests, amenities, categoryId, imageUrl } = validated.room;
 
     const categoryResult = await dbQuery("SELECT id FROM categories WHERE id = $1", [categoryId]);
     if (categoryResult.rows.length === 0) {
@@ -644,8 +677,8 @@ app.put("/rooms/:id", authMiddleware, adminOnly, async (req, res) => {
     }
 
     const result = await dbQuery(
-      "UPDATE rooms SET name = $1, city = $2, price_per_night = $3, max_guests = $4, amenities = $5, category_id = $6 WHERE id = $7 RETURNING *, (SELECT name FROM categories WHERE id = $6) as category_name",
-      [name, city, pricePerNight, maxGuests, amenities, categoryId, id]
+      "UPDATE rooms SET name = $1, city = $2, price_per_night = $3, max_guests = $4, amenities = $5, category_id = $6, image_url = $7 WHERE id = $8 RETURNING *, (SELECT name FROM categories WHERE id = $6) as category_name",
+      [name, city, pricePerNight, maxGuests, amenities, categoryId, imageUrl, id]
     );
 
     res.json(serializeRoom(result.rows[0]));
@@ -664,6 +697,9 @@ app.delete("/rooms/:id", authMiddleware, adminOnly, async (req, res) => {
       return res.status(404).json({ message: "Room not found" });
     }
 
+    // Explicitly remove dependent rows so deletion works even without CASCADE on older DBs
+    await dbQuery("DELETE FROM bookings WHERE room_id = $1", [id]);
+    await dbQuery("DELETE FROM user_favorites WHERE room_id = $1", [id]).catch(() => {});
     await dbQuery("DELETE FROM rooms WHERE id = $1", [id]);
     res.status(204).send();
   } catch (error) {
@@ -956,6 +992,66 @@ app.delete("/bookings/:id", authMiddleware, async (req, res) => {
     res.status(204).send();
   } catch (error) {
     console.error("Delete booking error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Upload Route
+app.post("/upload", authMiddleware, adminOnly, upload.single("image"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "No image provided or invalid file type (JPEG, PNG, WebP only)" });
+  }
+  res.json({ url: `${BACKEND_URL}/uploads/${req.file.filename}` });
+});
+
+// Favorites Routes (many-to-many: users <-> rooms)
+app.get("/favorites", authMiddleware, async (req, res) => {
+  try {
+    const result = await dbQuery(
+      `SELECT r.*, c.name as category_name
+       FROM user_favorites f
+       JOIN rooms r ON f.room_id = r.id
+       LEFT JOIN categories c ON r.category_id = c.id
+       WHERE f.user_id = $1
+       ORDER BY f.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows.map(serializeRoom));
+  } catch (error) {
+    console.error("Get favorites error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.post("/favorites/:roomId", authMiddleware, async (req, res) => {
+  try {
+    const roomId = Number(req.params.roomId);
+    const roomResult = await dbQuery("SELECT id FROM rooms WHERE id = $1", [roomId]);
+    if (roomResult.rows.length === 0) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    await dbQuery(
+      `INSERT INTO user_favorites (user_id, room_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [req.user.id, roomId]
+    );
+    res.status(201).json({ message: "Added to favorites" });
+  } catch (error) {
+    console.error("Add favorite error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.delete("/favorites/:roomId", authMiddleware, async (req, res) => {
+  try {
+    const roomId = Number(req.params.roomId);
+    await dbQuery(
+      `DELETE FROM user_favorites WHERE user_id = $1 AND room_id = $2`,
+      [req.user.id, roomId]
+    );
+    res.status(204).send();
+  } catch (error) {
+    console.error("Remove favorite error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });

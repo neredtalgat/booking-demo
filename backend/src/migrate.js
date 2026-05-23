@@ -32,18 +32,15 @@ function categorySeedData() {
   ];
 }
 
+const SEED_BASE_URL = process.env.BACKEND_URL || "http://localhost:8080";
+
 function roomSeedData() {
   return [
-    ["Deluxe City View", "Almaty", 120.0, 2, ["Wi-Fi", "Breakfast", "Air conditioning"], "Deluxe"],
-    ["Family Suite", "Astana", 180.0, 4, ["Wi-Fi", "Breakfast", "Kitchen", "Parking"], "Suite"],
-    ["Business Room", "Shymkent", 90.0, 2, ["Wi-Fi", "Desk", "Airport shuttle"], "Standard"],
-    ["Lake View Studio", "Borovoe", 140.0, 2, ["Wi-Fi", "Balcony", "Breakfast"], "Studio"],
-    ["City Center Loft", "Almaty", 160.0, 3, ["Wi-Fi", "Kitchen", "Washer"], "Apartment"],
-    ["Budget Twin", "Karaganda", 65.0, 2, ["Wi-Fi", "Heating"], "Economy"],
-    ["Royal Suite", "Astana", 260.0, 4, ["Wi-Fi", "Spa", "Breakfast", "Parking"], "Luxury"],
-    ["Mountain Cabin", "Almaty", 200.0, 5, ["Fireplace", "Kitchen", "Parking"], "Villa"],
-    ["Airport Express Room", "Shymkent", 85.0, 2, ["Wi-Fi", "Shuttle", "Breakfast"], "Standard"],
-    ["Seaside Apartment", "Aktau", 170.0, 4, ["Wi-Fi", "Kitchen", "Sea view"], "Apartment"],
+    ["Deluxe City View",    "Almaty",   120.0, 2, ["Wi-Fi", "Breakfast", "Air conditioning"], "Deluxe",   `${SEED_BASE_URL}/uploads/seed-deluxe-city-almaty.jpg`],
+    ["Royal Suite",         "Astana",   260.0, 4, ["Wi-Fi", "Spa", "Breakfast", "Parking"],   "Luxury",   `${SEED_BASE_URL}/uploads/seed-royal-suite-astana.jpg`],
+    ["Mountain Cabin",      "Almaty",   200.0, 5, ["Fireplace", "Kitchen", "Parking"],         "Villa",    `${SEED_BASE_URL}/uploads/seed-mountain-cabin-almaty.jpg`],
+    ["Seaside Apartment",   "Aktau",    170.0, 4, ["Wi-Fi", "Kitchen", "Sea view"],            "Apartment",`${SEED_BASE_URL}/uploads/seed-seaside-aktau.jpg`],
+    ["Airport Express Room","Shymkent",  85.0, 2, ["Wi-Fi", "Shuttle", "Breakfast"],           "Standard", `${SEED_BASE_URL}/uploads/seed-airport-express-shymkent.jpg`],
   ];
 }
 
@@ -123,7 +120,7 @@ async function ensureRoomsSeed(appClient) {
 
   const seeds = roomSeedData();
 
-  for (const [name, city, price, guests, amenities, categoryName] of seeds) {
+  for (const [name, city, price, guests, amenities, categoryName, imageUrl] of seeds) {
     const categoryResult = await appClient.query(
       `SELECT id FROM categories WHERE name = $1`,
       [categoryName]
@@ -137,15 +134,16 @@ async function ensureRoomsSeed(appClient) {
     const categoryId = categoryResult.rows[0].id;
 
     await appClient.query(
-      `INSERT INTO rooms (name, city, price_per_night, max_guests, amenities, category_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO rooms (name, city, price_per_night, max_guests, amenities, category_id, image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (name, city) DO UPDATE SET
          price_per_night = EXCLUDED.price_per_night,
          max_guests = EXCLUDED.max_guests,
          amenities = EXCLUDED.amenities,
-         category_id = EXCLUDED.category_id;
+         category_id = EXCLUDED.category_id,
+         image_url = EXCLUDED.image_url;
       `,
-      [name, city, price, guests, amenities, categoryId]
+      [name, city, price, guests, amenities, categoryId, imageUrl || null]
     );
   }
 }
@@ -210,8 +208,31 @@ async function migrate() {
           max_guests INTEGER,
           amenities TEXT[] DEFAULT ARRAY[]::TEXT[],
           category_id INTEGER REFERENCES categories(id) ON DELETE RESTRICT,
+          image_url TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
+      `);
+
+      await appClient.query(`
+        ALTER TABLE rooms ADD COLUMN IF NOT EXISTS image_url TEXT;
+      `);
+
+      // Ensure bookings.room_id FK has ON DELETE CASCADE (fix for older DBs)
+      await appClient.query(`
+        DO $$
+        DECLARE
+          v_confdeltype char;
+        BEGIN
+          SELECT confdeltype INTO v_confdeltype
+          FROM pg_constraint
+          WHERE conname = 'bookings_room_id_fkey';
+
+          IF FOUND AND v_confdeltype <> 'c' THEN
+            ALTER TABLE bookings DROP CONSTRAINT bookings_room_id_fkey;
+            ALTER TABLE bookings ADD CONSTRAINT bookings_room_id_fkey
+              FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE;
+          END IF;
+        END$$;
       `);
 
       await appClient.query(`
@@ -243,6 +264,20 @@ async function migrate() {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           expires_at TIMESTAMP NOT NULL
         )
+      `);
+
+      await appClient.query(`
+        CREATE TABLE IF NOT EXISTS user_favorites (
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (user_id, room_id)
+        )
+      `);
+
+      await appClient.query(`
+        CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites(user_id);
+        CREATE INDEX IF NOT EXISTS idx_user_favorites_room_id ON user_favorites(room_id);
       `);
 
       await appClient.query(`

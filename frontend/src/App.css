@@ -2,27 +2,41 @@
   --font-sans: "Segoe UI", "Inter", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
   --radius-sm: 10px;
   --radius-md: 14px;
-  --radius-lg: 18px;
-  --shadow-sm: 0 6px 16px rgba(15, 25, 40, 0.08);
-  --shadow-md: 0 12px 28px rgba(15, 25, 40, 0.14);
-  --focus-ring: 0 0 0 3px rgba(21, 100, 216, 0.25);
+  --radius-lg: 20px;
+  --radius-xl: 26px;
 
-  --bg-page-light: linear-gradient(180deg, #f2f6fb 0%, #e7eef8 100%);
-  --bg-page-dark: linear-gradient(180deg, #151f2b 0%, #0d141d 100%);
-  --text-light: #122033;
-  --text-dark: #deebfb;
+  --shadow-sm: 0 2px 8px rgba(15, 25, 40, 0.06), 0 6px 16px rgba(15, 25, 40, 0.08);
+  --shadow-md: 0 4px 12px rgba(15, 25, 40, 0.08), 0 12px 28px rgba(15, 25, 40, 0.14);
+  --shadow-card-hover:
+    0 2px 8px rgba(15, 25, 40, 0.06),
+    0 12px 32px rgba(15, 25, 40, 0.16),
+    0 28px 52px rgba(15, 25, 40, 0.12);
+  --focus-ring: 0 0 0 3px rgba(21, 100, 216, 0.22);
 
-  --surface-light: rgba(255, 255, 255, 0.92);
-  --surface-dark: rgba(15, 24, 32, 0.94);
-  --border-light: rgba(11, 34, 61, 0.1);
-  --border-dark: rgba(223, 235, 250, 0.14);
-  --muted-light: #5f7388;
-  --muted-dark: #9cb0c7;
+  --bg-page-light: linear-gradient(180deg, #eef3fb 0%, #e4edf8 100%);
+  --bg-page-dark: linear-gradient(180deg, #111a26 0%, #0b1219 100%);
+  --text-light: #0f1d2e;
+  --text-dark: #dceaf8;
+
+  --surface-light: rgba(255, 255, 255, 0.94);
+  --surface-dark: rgba(14, 22, 32, 0.95);
+  --border-light: rgba(11, 34, 61, 0.09);
+  --border-dark: rgba(220, 234, 248, 0.12);
+  --muted-light: #5c728a;
+  --muted-dark: #8aaac8;
 
   --primary: #1564d8;
-  --primary-hover: #0f56c1;
+  --primary-hover: #0f52be;
+  --cta: #d97706;
+  --cta-hover: #b45309;
   --danger: #c62828;
+
+  --hero-bg: linear-gradient(135deg, #0d1f35 0%, #0f2744 55%, #102038 100%);
+  --hero-blob-a: rgba(21, 100, 216, 0.28);
+  --hero-blob-b: rgba(14, 165, 160, 0.18);
 }
+
+/* ─── Base ─────────────────────────────────────────────── */
 
 .app {
   min-height: 100vh;
@@ -40,52 +54,62 @@
 }
 
 .app-main {
-  max-width: 1140px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 28px 24px 36px;
+  padding: 28px 24px 48px;
 }
+
+/* ─── Navbar ────────────────────────────────────────────── */
 
 .nav {
   display: flex;
   justify-content: space-between;
   gap: 16px;
   align-items: center;
-  padding: 14px 24px;
+  padding: 14px 28px;
   border-bottom: 1px solid var(--border-light);
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   position: sticky;
   top: 0;
   z-index: 20;
 }
 
 .app--dark .nav {
-  background: rgba(14, 21, 29, 0.84);
+  background: rgba(10, 17, 26, 0.86);
   border-bottom-color: var(--border-dark);
 }
 
 .nav-brand {
   font-weight: 700;
-  letter-spacing: 0.2px;
+  font-size: 15px;
+  letter-spacing: 0.1px;
   text-decoration: none;
   color: inherit;
 }
 
 .nav-links {
   display: flex;
-  gap: 10px;
+  gap: 4px;
 }
 
 .nav-links a {
   text-decoration: none;
   color: inherit;
-  padding: 8px 12px;
+  padding: 7px 13px;
   border-radius: var(--radius-sm);
-  transition: background-color 0.2s ease, color 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.nav-links a:hover {
+  background: rgba(21, 100, 216, 0.08);
 }
 
 .nav-links a.active {
-  background: #3f82ff;
+  background: var(--primary);
   color: #fff;
 }
 
@@ -97,27 +121,33 @@
 
 .user-email {
   font-size: 13px;
-  opacity: 0.88;
+  opacity: 0.78;
 }
+
+/* ─── Card ──────────────────────────────────────────────── */
 
 .card {
   background: var(--surface-light);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  padding: 18px;
+  padding: 20px;
   box-shadow: var(--shadow-sm);
 }
 
 .app--dark .card {
   background: var(--surface-dark);
   border-color: var(--border-dark);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
 }
+
+/* ─── Login ─────────────────────────────────────────────── */
 
 .login-card {
   max-width: 420px;
-  margin: 64px auto;
+  margin: 72px auto;
 }
+
+/* ─── Forms ─────────────────────────────────────────────── */
 
 .form-stack {
   display: grid;
@@ -128,12 +158,225 @@
   gap: 6px;
 }
 
+input,
+select,
+button {
+  border: 1px solid rgba(100, 130, 160, 0.55);
+  border-radius: var(--radius-sm);
+  padding: 10px 13px;
+  font: inherit;
+}
+
+input,
+select {
+  background: rgba(255, 255, 255, 0.9);
+  color: inherit;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
+}
+
+select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23122033' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.app--dark input,
+.app--dark select {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(197, 214, 234, 0.22);
+  color: var(--text-dark);
+}
+
+.app--dark select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23deebfb' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(21, 100, 216, 0.15), 0 2px 8px rgba(21, 100, 216, 0.08);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ─── Buttons ───────────────────────────────────────────── */
+
+button {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+button:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: inherit;
+  border-color: rgba(100, 130, 160, 0.45);
+}
+
+.btn-secondary:hover {
+  background: rgba(21, 100, 216, 0.06);
+}
+
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn-cta {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border-color: #d97706;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.32);
+}
+
+.btn-cta:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  border-color: #b45309;
+  box-shadow: 0 6px 20px rgba(217, 119, 6, 0.44);
+}
+
+.btn-text {
+  background: transparent;
+  color: inherit;
+  border: none;
+  text-decoration: underline;
+  padding-left: 0;
+  box-shadow: none;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+/* ─── Hero ──────────────────────────────────────────────── */
+
+.rooms-hero {
+  position: relative;
+  background: var(--hero-bg);
+  border-radius: var(--radius-xl);
+  padding: 52px 36px 40px;
+  margin-bottom: 32px;
+  overflow: hidden;
+}
+
+.rooms-hero::before {
+  content: "";
+  position: absolute;
+  top: -80px;
+  right: -100px;
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, var(--hero-blob-a) 0%, transparent 68%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.rooms-hero::after {
+  content: "";
+  position: absolute;
+  bottom: -60px;
+  left: -80px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, var(--hero-blob-b) 0%, transparent 68%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.rooms-hero__title {
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin: 0 0 6px;
+  position: relative;
+  z-index: 1;
+}
+
+.rooms-hero__sub {
+  color: rgba(200, 220, 245, 0.7);
+  font-size: 14px;
+  margin: 0 0 28px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Glassmorphism search ──────────────────────────────── */
+
+.search-glass {
+  background: rgba(255, 255, 255, 0.09) !important;
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  position: relative;
+  z-index: 1;
+}
+
+.search-glass label {
+  color: rgba(210, 230, 255, 0.78);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.search-glass input,
+.search-glass select {
+  background: rgba(255, 255, 255, 0.11) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #fff !important;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
+}
+
+.search-glass input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.search-glass input:focus,
+.search-glass select:focus {
+  border-color: rgba(255, 255, 255, 0.48) !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+
 .search-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
   align-items: end;
-  margin-bottom: 16px;
+  padding: 22px;
 }
 
 .search-grid label {
@@ -143,37 +386,133 @@
   letter-spacing: 0.2px;
 }
 
+/* ─── Room grid + cards ─────────────────────────────────── */
+
 .room-grid,
 .booking-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 16px;
 }
 
-.room-card button {
-  margin-top: 8px;
+.room-card {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  cursor: default;
 }
 
-.room-card h3,
+.room-card:hover {
+  transform: translateY(-7px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.app--dark .room-card:hover {
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 14px 36px rgba(0, 0, 0, 0.42),
+    0 30px 56px rgba(0, 0, 0, 0.28);
+}
+
+.room-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.room-card__category {
+  background: rgba(21, 100, 216, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(21, 100, 216, 0.2);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 2px 9px;
+}
+
+.app--dark .room-card__category {
+  background: rgba(21, 100, 216, 0.18);
+  border-color: rgba(21, 100, 216, 0.32);
+  color: #7eb3ff;
+}
+
+.room-card__city {
+  font-size: 12px;
+  color: var(--muted-light);
+}
+
+.app--dark .room-card__city {
+  color: var(--muted-dark);
+}
+
+.room-card h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
 .booking-list h3 {
   margin-top: 0;
   margin-bottom: 8px;
 }
 
+/* ─── Price ─────────────────────────────────────────────── */
+
+.room-price {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--cta);
+  margin: 6px 0 8px;
+  letter-spacing: -0.4px;
+  line-height: 1;
+}
+
+.room-price--lg {
+  font-size: 1.9rem;
+}
+
+.per-night {
+  font-size: 0.82rem;
+  font-weight: 400;
+  opacity: 0.65;
+  letter-spacing: 0;
+}
+
+/* ─── Room details page ─────────────────────────────────── */
+
 .room-details-page {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .room-details-card h1 {
   margin-top: 0;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
+
+.room-details-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.room-details-header h1 {
+  margin: 0;
+}
+
+/* ─── Booking form ──────────────────────────────────────── */
 
 .booking-form {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
+
+/* ─── Modal ─────────────────────────────────────────────── */
 
 .modal {
   margin-top: 16px;
@@ -182,11 +521,12 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.44);
   display: grid;
   place-items: center;
   z-index: 30;
   padding: 16px;
+  backdrop-filter: blur(3px);
 }
 
 .confirm-modal {
@@ -200,14 +540,17 @@
   justify-content: space-between;
 }
 
+/* ─── Status / errors ───────────────────────────────────── */
+
 .status {
   font-size: 14px;
-  color: #11703f;
+  color: #0d6e3a;
   margin: 0;
+  font-weight: 500;
 }
 
 .error {
-  color: #d62839;
+  color: #c62828;
   margin: 0;
   font-weight: 600;
 }
@@ -222,95 +565,41 @@
   color: var(--muted-dark);
 }
 
-input,
-select,
-button {
-  border: 1px solid #95a8bf;
+/* ─── Favorites button ──────────────────────────────────── */
+
+.btn-favorite {
+  background: transparent;
+  border: 1px solid rgba(100, 130, 160, 0.4);
+  color: var(--muted-light);
+  font-size: 18px;
+  padding: 6px 11px;
+  line-height: 1;
   border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font: inherit;
-}
-
-input,
-select {
-  background: rgba(255, 255, 255, 0.88);
-  color: inherit;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-select {
   cursor: pointer;
-  appearance: none;
-  padding-right: 30px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23122033' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  flex-shrink: 0;
 }
 
-.app--dark input,
-.app--dark select {
-  background-color: rgba(255, 255, 255, 0.06);
-  border-color: rgba(197, 214, 234, 0.3);
+.btn-favorite:hover {
+  color: #c62828;
+  border-color: rgba(198, 40, 40, 0.45);
+  background: rgba(198, 40, 40, 0.07);
+  box-shadow: none;
 }
 
-.app--dark select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23deebfb' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+.btn-favorite--active {
+  color: #c62828;
+  background: rgba(198, 40, 40, 0.09);
+  border-color: rgba(198, 40, 40, 0.45);
 }
 
-input:focus,
-select:focus,
-button:focus-visible,
-a:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+.btn-favorite--lg {
+  font-size: 24px;
+  padding: 8px 14px;
 }
 
-button {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-  cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
-}
-
-button:hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
-}
-
-button:active {
-  transform: translateY(1px);
-}
-
-button:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: transparent;
-  color: inherit;
-}
-
-.btn-danger {
-  background: var(--danger);
-  border-color: var(--danger);
-}
-
-.inline-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.btn-text {
-  background: transparent;
-  color: inherit;
-  border: none;
-  text-decoration: underline;
-  padding-left: 0;
-}
+/* ─── Toasts ────────────────────────────────────────────── */
 
 .toast-container {
   position: fixed;
@@ -324,13 +613,13 @@ button:disabled {
 
 .toast {
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 11px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
   color: #fff;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.26);
 }
 
 .toast button {
@@ -338,6 +627,12 @@ button:disabled {
   border: none;
   color: inherit;
   padding: 0;
+  box-shadow: none;
+  font-size: 16px;
+}
+
+.toast button:hover {
+  background: transparent;
 }
 
 .toast p {
@@ -345,21 +640,438 @@ button:disabled {
   font-size: 14px;
 }
 
-.toast--success {
-  background: #11703f;
+.toast--success { background: #0d6e3a; }
+.toast--error   { background: #b42328; }
+.toast--info    { background: #1555b4; }
+
+/* ─── Form field label (span used when label wraps input) ── */
+
+form.card.form-stack .form-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+  color: var(--muted-light);
+  margin-bottom: -4px;
 }
 
-.toast--error {
-  background: #b42328;
+.app--dark form.card.form-stack .form-field-label {
+  color: var(--muted-dark);
 }
 
-.toast--info {
-  background: #1555b4;
+/* ─── Upload zone ───────────────────────────────────────── */
+
+.upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 22px 16px;
+  border: 2px dashed rgba(100, 130, 160, 0.4);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+  user-select: none;
 }
+
+.upload-zone:hover {
+  border-color: var(--primary);
+  background: rgba(21, 100, 216, 0.04);
+}
+
+.upload-zone--busy {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.upload-zone input[type="file"] {
+  display: none;
+}
+
+.upload-zone__icon {
+  font-size: 24px;
+  line-height: 1;
+  opacity: 0.5;
+}
+
+.upload-zone > span:not(.upload-zone__icon):not(.upload-zone__hint) {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.upload-zone__hint {
+  font-size: 11px;
+  color: var(--muted-light);
+  margin-top: 2px;
+}
+
+.app--dark .upload-zone__hint {
+  color: var(--muted-dark);
+}
+
+.app--dark .upload-zone {
+  border-color: rgba(197, 214, 234, 0.2);
+}
+
+.app--dark .upload-zone:hover {
+  background: rgba(21, 100, 216, 0.08);
+}
+
+/* ─── Upload preview ─────────────────────────────────────── */
+
+.upload-preview {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  line-height: 0;
+}
+
+.upload-preview__img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  border-radius: var(--radius-md);
+}
+
+.upload-preview__remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: none;
+  color: #fff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color 0.18s ease;
+}
+
+.upload-preview__remove:hover {
+  background: rgba(0, 0, 0, 0.78);
+}
+
+/* ─── Room card image ───────────────────────────────────── */
+
+.room-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.room-card__image,
+.room-card__image-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  display: block;
+  flex-shrink: 0;
+}
+
+.room-card__image {
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.room-card:hover .room-card__image {
+  transform: scale(1.04);
+}
+
+.room-card__image-placeholder {
+  background: linear-gradient(135deg, #1a2a40 0%, #203a5a 50%, #162a45 100%);
+}
+
+.room-card__body {
+  padding: 16px 18px 18px;
+}
+
+/* ─── Room details image ────────────────────────────────── */
+
+.room-details-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.room-details-image {
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  object-fit: cover;
+  display: block;
+}
+
+.room-details-image--placeholder {
+  background: linear-gradient(135deg, #1a2a40 0%, #203a5a 50%, #162a45 100%);
+}
+
+.room-details-body {
+  padding: 22px 24px 20px;
+}
+
+.room-details-body .room-details-header {
+  margin-bottom: 10px;
+}
+
+.room-details-body .room-details-header h1 {
+  margin: 4px 0 2px;
+  font-size: 1.6rem;
+}
+
+.room-details-body .room-card__category {
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+/* ─── Admin room card (with thumbnail) ─────────────────── */
+
+.booking-list > .card.admin-room-card {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+}
+
+.admin-room-card__image {
+  width: 140px;
+  min-height: 100%;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: block;
+}
+
+.admin-room-card__body {
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-room-card__body h3 {
+  margin: 2px 0 0;
+}
+
+.admin-room-card__body .inline-actions {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+}
+
+.app--dark .admin-room-card__body .inline-actions {
+  border-top-color: var(--border-dark);
+}
+
+/* ─── Page layout (non-hero sections) ──────────────────── */
+
+section:not(.rooms-page) {
+  display: grid;
+  gap: 28px;
+  align-content: start;
+}
+
+section:not(.rooms-page) > h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid var(--border-light);
+}
+
+.app--dark section:not(.rooms-page) > h1 {
+  border-bottom-color: var(--border-dark);
+}
+
+/* ─── Admin form card ────────────────────────────────────── */
+
+form.card.form-stack {
+  padding: 28px 28px 22px;
+  gap: 16px;
+  max-width: 680px;
+}
+
+form.card.form-stack label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+  color: var(--muted-light);
+  margin-bottom: -4px;
+}
+
+.app--dark form.card.form-stack label {
+  color: var(--muted-dark);
+}
+
+form.card.form-stack input,
+form.card.form-stack select {
+  padding: 11px 14px;
+  font-size: 14px;
+}
+
+form.card.form-stack .inline-actions {
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-light);
+}
+
+.app--dark form.card.form-stack .inline-actions {
+  border-top-color: var(--border-dark);
+}
+
+/* ─── List cards (bookings / rooms / categories) ─────────── */
+
+.booking-list {
+  gap: 16px;
+}
+
+.booking-list > .card {
+  padding: 22px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.booking-list > .card h3 {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.booking-list > .card > p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.booking-list > .card .inline-actions {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+  gap: 8px;
+}
+
+.booking-list > .card .inline-actions button {
+  font-size: 13px;
+  padding: 8px 14px;
+}
+
+.app--dark .booking-list > .card .inline-actions {
+  border-top-color: var(--border-dark);
+}
+
+/* ─── Inline edit form inside booking card ───────────────── */
+
+.booking-list > .card .form-stack.compact {
+  margin-top: 8px;
+  gap: 8px;
+}
+
+.booking-list > .card .form-stack.compact label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted-light);
+}
+
+.app--dark .booking-list > .card .form-stack.compact label {
+  color: var(--muted-dark);
+}
+
+/* ─── Login card polish ──────────────────────────────────── */
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.login-card > p {
+  margin: -10px 0 0;
+  font-size: 13px;
+  color: var(--muted-light);
+}
+
+.app--dark .login-card > p {
+  color: var(--muted-dark);
+}
+
+.login-card .form-stack {
+  gap: 12px;
+}
+
+.login-card .form-stack label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted-light);
+  margin-bottom: -4px;
+}
+
+.app--dark .login-card .form-stack label {
+  color: var(--muted-dark);
+}
+
+.login-card button[type="submit"] {
+  margin-top: 4px;
+  padding: 12px;
+  font-size: 15px;
+}
+
+/* ─── Room details booking panel ─────────────────────────── */
+
+.room-details-booking .booking-form {
+  gap: 14px;
+}
+
+.room-details-booking .booking-form label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted-light);
+  margin-bottom: -6px;
+  display: block;
+}
+
+.app--dark .room-details-booking .booking-form label {
+  color: var(--muted-dark);
+}
+
+/* ─── Responsive ────────────────────────────────────────── */
 
 @media (max-width: 900px) {
+  .rooms-hero {
+    padding: 36px 20px 28px;
+    border-radius: var(--radius-lg);
+  }
+
+  .rooms-hero__title {
+    font-size: 1.5rem;
+  }
+
   .search-grid {
     grid-template-columns: 1fr;
+    padding: 16px;
   }
 
   .nav {
@@ -368,6 +1080,6 @@ button:disabled {
   }
 
   .app-main {
-    padding: 20px 14px 28px;
+    padding: 20px 14px 32px;
   }
 }

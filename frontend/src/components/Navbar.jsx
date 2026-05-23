@@ -30,6 +30,9 @@ export default function Navbar() {
             <Link className={location.pathname === "/bookings" ? "active" : ""} to="/bookings">
               My bookings
             </Link>
+            <Link className={location.pathname === "/favorites" ? "active" : ""} to="/favorites">
+              Favorites
+            </Link>
             {user.role === "admin" && (
               <>
                 <Link className={location.pathname === "/admin/rooms" ? "active" : ""} to="/admin/rooms">
